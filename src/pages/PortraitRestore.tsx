@@ -139,23 +139,13 @@ export default function PortraitRestore() {
       blendingSmoothness: 40,
       prompts: {
         analysis: `Analyze this portrait. Describe facial features, age, gender, lighting, and current clothing in detail.`,
-        enhancement: `Instruction: You are a master of photo restoration and inpainting. Your primary mission for this base image is to HEAL all physical damages:
-1. HEAL & CLEAN:
-- Identify and completely REMOVE all white scratches, tears, and dust spots. 
-- Fill in (Inpaint) the missing data in damaged areas by blending with the surrounding textures.
-- Clean the background and clothing. Remove all aging stains and color splotches while maintaining the natural depth of the scene.
-${colorMode === 'colorize' ? '- Colorize the image naturally with realistic skin tones and clothing colors.' : '- Keep the original tones but clean them up.'}
-${backgroundInstruction}
-${replaceClothing ? `Change clothing to: ${selectedClothingPrompt}.` : 'Preserve original clothing.'}
-${enhanceClothing ? 'Sharpen fabric textures and details.' : ''}
-
-2. EDGE RESTORATION:
-- Pay special attention to the edges of the photo. If there are black bars, scanning artifacts, or messy crop lines at the top/bottom/sides, you must RECONSTRUCT those edges. Extend the background naturally to fill the entire frame cleanly. No messy borders allowed.
-
-3. LIGHTING BALANCE:
-- Uniformly balance the lighting. Ensure the background light doesn't look hazy or washed out compared to the restored subjects.
-
-The result must be a clean, vibrant base image for face stitching.`,
+        enhancement: `Master photo restorer. Restore this portrait. 
+          ${colorMode === 'colorize' ? 'Colorize naturally.' : 'Keep original tones.'}
+          ${backgroundInstruction}
+          ${replaceClothing ? `Change clothing to: ${selectedClothingPrompt}.` : 'Preserve original clothing.'}
+          ${enhanceClothing ? 'Sharpen fabric textures and details.' : ''}
+          Ensure high resolution and remove all noise/scratches.
+          OUTPUT REQUIREMENT: Generate the restored image with the highest possible pixel density and structural clarity. Ensure that fine details like skin pores and fabric weaves are preserved for high-resolution upscaling (up to 4K).`,
         face: `Enhance this face. Sharpen eyes, skin, and hair while strictly preserving the person's original identity and expression. Output high-definition face.`
       }
     };

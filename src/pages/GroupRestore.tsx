@@ -159,6 +159,7 @@ CRITICAL INSTRUCTIONS:
 - NO HALLUCINATION (CLOTHING): Do NOT change the color of trousers or shirts. If the woman is wearing white trousers, they MUST remain white. Do NOT turn them black.
 - IDENTITY: Maintain the exact facial structure and expressions based on the analysis.
 ${colorization === 'colorize' ? '- Colorize the image naturally with realistic skin tones and clothing colors.' : '- Keep the original tones but clean them up.'}
+OUTPUT REQUIREMENT: Generate the restored image with the highest possible pixel density and structural clarity. Ensure that fine details like skin pores and fabric weaves are preserved for high-resolution upscaling (up to 4K).
 The result must be a clean, high-fidelity base image for face stitching.`,
         face: `Enhance this face from a group photo. 
           ${faceEnhancement === 'maximum' ? 'Apply maximum sharpening.' : 'Apply balanced enhancement.'}
@@ -167,11 +168,11 @@ The result must be a clean, high-fidelity base image for face stitching.`,
           - EYES & EXPRESSION: Keep the eye shape and gaze exactly as the original. 
           - LIMIT CREATIVITY: Treat this as a restoration project, not a portrait creation.`,
         clothing: `Focus EXCLUSIVELY on the clothing. 
-- Reconstruct the microscopic texture of the fabric (weave, fibers, sheen). 
-- Sharpen the edges of collars, buttons, and embroidery patterns. 
-- Enhance the depth of fabric folds using realistic shadowing. 
-- Ensure the white garments (Ao Dai and shirt) have high textural fidelity and don't look like flat white shapes. 
-- Return the image with maximum detail on textiles.`
+- Denoise and globally sharpen the edges of fabric folds, collars, and buttons.
+- Enhance the depth of fabric folds using realistic shadowing.
+- CRITICAL: For complex or repetitive patterns (like florals, polka dots, intricate prints), DO NOT over-render or attempt to micro-manage every single detail. Focus on global clarity, contrast, and realistic fabric flow to optimize processing time.
+- Ensure the white garments (Ao Dai and shirt) maintain natural shading and textural fidelity, avoiding flat white shapes or muddy colors.
+- Return the image with clean, enhanced textiles without excessive micro-detailing.`
       }
     };
 

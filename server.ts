@@ -54,7 +54,7 @@ async function upscaleImage(buffer: Buffer, resolution: string): Promise<Buffer>
       withoutEnlargement: false,
       kernel: sharp.kernel.lanczos3 // Thuật toán nội suy chất lượng cao để giữ nét
     })
-    .jpeg({ quality: 95, chromaSubsampling: '4:4:4' }) // Xuất chất lượng cao nhất
+    .jpeg({ quality: 100, chromaSubsampling: '4:4:4' }) // Xuất chất lượng cao nhất
     .toBuffer();
 }
 
@@ -237,15 +237,18 @@ app.post('/api/finalize-image', async (req, res) => {
       console.log("Compositing completed successfully.");
     }
 
-    // --- STEP 6: GLOBAL POST-PROCESSING ---
-    console.log("Applying global post-processing (brightness, sharpen)...");
-    finalImageBuffer = await sharp(finalImageBuffer)
+    // --- STEP 6: UPSCALING ---
+    console.log(`Upscaling image to ${selectedResolution}...`);
+    let finalBuffer = await upscaleImage(finalImageBuffer, selectedResolution);
+
+    // --- STEP 7: GLOBAL POST-PROCESSING ---
+    console.log(`Applying global post-processing (brightness, sharpen) for ${selectedResolution}...`);
+    const sharpenSigma = selectedResolution === '4K' ? 1.0 : (selectedResolution === '2K' ? 0.8 : 0.5);
+    finalBuffer = await sharp(finalBuffer)
       .modulate({ brightness: 1.02 }) // Tăng sáng nhẹ, không tăng saturation để giữ nét cổ điển
-      .sharpen({ sigma: 0.3 }) // Làm nét nhẹ toàn bộ nền (giảm từ 0.5 xuống 0.3 để tránh nếp nhăn bị gắt)
+      .sharpen({ sigma: sharpenSigma }) // Làm nét dựa trên độ phân giải
       .jpeg({ quality: 95 })
       .toBuffer();
-
-    const finalBuffer = await upscaleImage(finalImageBuffer, selectedResolution);
     
     res.json({ success: true, image: `data:image/jpeg;base64,${finalBuffer.toString('base64')}` });
   } catch (error: any) {
