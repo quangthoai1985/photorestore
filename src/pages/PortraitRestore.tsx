@@ -141,6 +141,21 @@ export default function PortraitRestore() {
         analysis: `Analyze this portrait. Describe facial features, age, gender, lighting, and current clothing in detail.`,
         enhancement: `Master photo restorer. Restore this portrait. 
           ${colorMode === 'colorize' ? 'Colorize naturally.' : 'Keep original tones.'}
+          ${colorMode === 'colorize' ? `
+COLOR GRADING RULES (strict):
+
+Vietnamese/Asian skin tone: use warm #C8A882 to #A07850 range, NOT orange/pink.
+White áo dài or dress shirts: PURE white #F5F5F0, remove ALL yellow aging stains.
+Dark trousers/suits: neutral dark gray #2A2A2A or navy, NOT black blob.
+Hair: match original dark/grey ratio exactly, do NOT whiten dark hair.
+` : ''}
+DAMAGE REPAIR PRIORITY ORDER:
+
+
+First: INPAINT all white scratches, tears, and physical damage.
+Then: Remove dust, noise, paper texture (hexagonal dots, film grain).
+Last: Sharpen edges and enhance detail.
+DO NOT sharpen damaged areas before inpainting them.
           ${backgroundInstruction}
           ${replaceClothing ? `Change clothing to: ${selectedClothingPrompt}.` : 'Preserve original clothing.'}
           ${enhanceClothing ? 'Sharpen fabric textures and details.' : ''}

@@ -54,7 +54,7 @@ async function upscaleImage(buffer: Buffer, resolution: string): Promise<Buffer>
       withoutEnlargement: false,
       kernel: sharp.kernel.lanczos3 // Thuật toán nội suy chất lượng cao để giữ nét
     })
-    .jpeg({ quality: 100, chromaSubsampling: '4:4:4' }) // Xuất chất lượng cao nhất
+    .jpeg({ quality: 100, chromaSubsampling: '4:4:4', mozjpeg: false }) // Xuất chất lượng cao nhất
     .toBuffer();
 }
 
@@ -84,6 +84,7 @@ app.post('/api/upscale-image', async (req, res) => {
 app.post('/api/process-hybrid', async (req, res) => {
   try {
     const { imageBase64, detectionSensitivity = 50, maxFaces = 'all' } = req.body;
+    console.log('[process-hybrid] modelsLoaded:', modelsLoaded, '| imageBase64 length:', imageBase64?.length);
     if (!imageBase64) return res.status(400).json({ error: 'Missing imageBase64' });
 
     const base64Data = imageBase64.split(',')[1];
@@ -121,6 +122,7 @@ app.post('/api/process-hybrid', async (req, res) => {
       for (const box of faceBoxes) {
         const faceBuffer = await sharp(imageBuffer)
           .extract({ left: box.x, top: box.y, width: box.width, height: box.height })
+          .png()
           .toBuffer();
         faces.push({
           ...box,
@@ -128,7 +130,34 @@ app.post('/api/process-hybrid', async (req, res) => {
         });
       }
     } else {
-      console.warn("Face-api models not loaded. Returning empty faces array.");
+      console.warn("Face-api models not loaded. Using center-crop fallback.");
+      // Fallback: crop vùng trung tâm-trên của ảnh (thường chứa khuôn mặt
+      // trong ảnh chân dung và ảnh nhóm). Tạo ra 1 face region dựa theo tỷ lệ.
+      const fallbackCropWidth = Math.floor(imgWidth * 0.6);
+      const fallbackCropHeight = Math.floor(imgHeight * 0.6);
+      const fallbackX = Math.floor((imgWidth - fallbackCropWidth) / 2);
+      const fallbackY = Math.floor(imgHeight * 0.04);
+      // Giới hạn để không vượt quá kích thước ảnh
+      const safeWidth = Math.min(fallbackCropWidth, imgWidth - fallbackX);
+      const safeHeight = Math.min(fallbackCropHeight, imgHeight - fallbackY);
+      if (safeWidth > 40 && safeHeight > 40) {
+        const fallbackBuffer = await sharp(imageBuffer)
+          .extract({
+            left: fallbackX,
+            top: fallbackY,
+            width: safeWidth,
+            height: safeHeight
+          })
+          .png()
+          .toBuffer();
+        faces.push({
+          x: fallbackX,
+          y: fallbackY,
+          width: safeWidth,
+          height: safeHeight,
+          imageBase64: fallbackBuffer.toString('base64')
+        });
+      }
     }
 
     res.json({ success: true, faces });
@@ -144,6 +173,7 @@ app.post('/api/process-hybrid', async (req, res) => {
 app.post('/api/finalize-image', async (req, res) => {
   try {
     const { baseImageBase64, clothingImageBase64, faces, blendingSmoothness = 40, selectedResolution = '1K' } = req.body;
+    console.log('[finalize-image] faces count:', faces?.length ?? 0, '| resolution:', selectedResolution);
     if (!baseImageBase64) return res.status(400).json({ error: 'Missing baseImageBase64' });
 
     const baseBufferRaw = Buffer.from(baseImageBase64.split(',')[1], 'base64');
@@ -185,6 +215,7 @@ app.post('/api/finalize-image', async (req, res) => {
 
       finalImageBuffer = await sharp(baseBuffer)
         .composite([{ input: maskedClothing, blend: 'over' }])
+        .png()
         .toBuffer();
     }
 
@@ -197,6 +228,7 @@ app.post('/api/finalize-image', async (req, res) => {
         // Resize face to match original detection box
         const resizedFaceBuffer = await sharp(faceBuffer)
           .resize(width, height, { fit: 'fill' })
+          .png()
           .toBuffer();
 
         // Apply feathering mask (Increased for smoother blending)
@@ -206,6 +238,10 @@ app.post('/api/finalize-image', async (req, res) => {
         const innerWidth = Math.max(1, width - feather * 2);
         const innerHeight = Math.max(1, height - feather * 2);
 
+        const ellipseCx = width / 2;
+        const ellipseCy = height * 0.45;
+        const ellipseRx = (width / 2) - feather;
+        const ellipseRy = (height / 2) - feather * 0.6;
         const svgMask = `
           <svg width="${width}" height="${height}">
             <defs>
@@ -213,8 +249,15 @@ app.post('/api/finalize-image', async (req, res) => {
                 <feGaussianBlur stdDeviation="${stdDev}" />
               </filter>
             </defs>
-            <rect x="0" y="0" width="${width}" height="${height}" fill="transparent" />
-            <rect x="${feather}" y="${feather}" width="${innerWidth}" height="${innerHeight}" fill="white" filter="url(#blur)" />
+            <rect x="0" y="0" width="${width}" height="${height}" fill="black" />
+            <ellipse
+              cx="${ellipseCx}"
+              cy="${ellipseCy}"
+              rx="${Math.max(1, ellipseRx)}"
+              ry="${Math.max(1, ellipseRy)}"
+              fill="white"
+              filter="url(#blur)"
+            />
           </svg>
         `;
         
@@ -223,8 +266,53 @@ app.post('/api/finalize-image', async (req, res) => {
           .png()
           .toBuffer();
 
+        // Color normalization: lấy mẫu màu tại vùng cổ/vai (ngay dưới mặt)
+        // để điều chỉnh brightness của mặt khớp với cơ thể
+        let normalizedFace = featheredFace;
+        try {
+          const imgWidth = metadata.width || 1024;
+          const imgHeight = metadata.height || 1024;
+          const neckY = Math.min(y + height, imgHeight - 1);
+          const neckSampleHeight = Math.max(4, Math.floor(height * 0.08));
+          const neckSampleWidth = Math.floor(width * 0.4);
+          const neckSampleX = Math.floor(x + width * 0.3);
+          const neckSampleY = Math.min(neckY, imgHeight - neckSampleHeight - 1);
+          if (neckSampleX + neckSampleWidth <= imgWidth &&
+              neckSampleY + neckSampleHeight <= imgHeight) {
+            const neckStats = await sharp(baseBuffer)
+              .extract({
+                left: neckSampleX,
+                top: neckSampleY,
+                width: neckSampleWidth,
+                height: neckSampleHeight
+              })
+              .stats();
+            const faceStats = await sharp(featheredFace)
+              .stats();
+
+            const neckBrightness = neckStats.channels[0].mean;
+            const faceBrightness = faceStats.channels[0].mean;
+
+            if (faceBrightness > 10 && neckBrightness > 10) {
+              const ratio = neckBrightness / faceBrightness;
+              // Chỉ điều chỉnh nếu chênh lệch > 8% (tránh overcorrect)
+              if (Math.abs(ratio - 1.0) > 0.08) {
+                const clampedRatio = Math.max(0.75, Math.min(1.25, ratio));
+                normalizedFace = await sharp(featheredFace)
+                  .modulate({ brightness: clampedRatio })
+                  .png()
+                  .toBuffer();
+                console.log(`[finalize] Face ${x},${y}: brightness adjusted by ${clampedRatio.toFixed(2)}x`);
+              }
+            }
+          }
+        } catch (normErr) {
+          console.warn('[finalize] Color normalization skipped:', normErr);
+          normalizedFace = featheredFace;
+        }
+
         return {
-          input: featheredFace,
+          input: normalizedFace,
           top: y,
           left: x,
         };
@@ -246,8 +334,8 @@ app.post('/api/finalize-image', async (req, res) => {
     const sharpenSigma = selectedResolution === '4K' ? 1.0 : (selectedResolution === '2K' ? 0.8 : 0.5);
     finalBuffer = await sharp(finalBuffer)
       .modulate({ brightness: 1.02 }) // Tăng sáng nhẹ, không tăng saturation để giữ nét cổ điển
-      .sharpen({ sigma: sharpenSigma }) // Làm nét dựa trên độ phân giải
-      .jpeg({ quality: 95 })
+      .sharpen({ sigma: sharpenSigma, m1: 1.5, m2: 0.7 }) // Làm nét dựa trên độ phân giải
+      .jpeg({ quality: 97, chromaSubsampling: '4:4:4', mozjpeg: false })
       .toBuffer();
     
     res.json({ success: true, image: `data:image/jpeg;base64,${finalBuffer.toString('base64')}` });

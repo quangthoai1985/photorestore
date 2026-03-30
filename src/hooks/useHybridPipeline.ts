@@ -61,7 +61,7 @@ export const useHybridPipeline = () => {
       // --- STEP 2: Base Enhancement (Frontend AI) ---
       setStatus({ step: 'Bước 2: Phục hồi tổng thể...', progress: 30 });
       const enhancementResponse = await ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview', // Force Pro for best background detail
+        model: options.selectedModel,
         contents: {
           parts: [
             { text: `${options.prompts.enhancement}\n\nIDENTITY PRESERVATION LOG:\n${identityLog}` },
@@ -104,48 +104,67 @@ export const useHybridPipeline = () => {
       for (let i = 0; i < faces.length; i++) {
         const face = faces[i];
         console.log(`Processing face ${i + 1}/${faces.length}...`);
+        const faceProgress = 60 + Math.floor(((i + 0.5) / faces.length) * 20);
+        const estimatedSecondsLeft = (faces.length - i) * 12;
+        const timeLabel = estimatedSecondsLeft > 60
+          ? `~${Math.ceil(estimatedSecondsLeft / 60)} phút còn lại`
+          : `~${estimatedSecondsLeft}s còn lại`;
         setStatus({ 
-          step: `Bước 4: Đang xử lý mặt ${i + 1}/${faces.length}...`, 
-          progress: 60 + Math.floor((i / faces.length) * 20) 
+          step: `Bước 4: Khuôn mặt ${i + 1}/${faces.length} — ${timeLabel}`, 
+          progress: faceProgress 
         });
 
-        try {
-          const faceResponse = await ai.models.generateContent({
-            model: options.selectedModel,
-            contents: {
-              parts: [
-                { text: `${options.prompts.face}\n\nIDENTITY PRESERVATION LOG:\n${identityLog}` },
-                { inlineData: { data: face.imageBase64, mimeType: 'image/jpeg' } }
-              ]
-            },
-            config: { temperature: 0.1 }
-          });
+        const MAX_RETRIES = 2;
+        let enhancedFaceBase64 = "";
+        let lastError: any = null;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            if (attempt > 0) {
+              const retryDelay = attempt * 3000;
+              console.log(`Retry ${attempt}/${MAX_RETRIES} for face ${i + 1}, waiting ${retryDelay}ms...`);
+              await delay(retryDelay);
+            }
+            const faceResponse = await ai.models.generateContent({
+              model: options.selectedModel,
+              contents: {
+                parts: [
+                  { text: `${options.prompts.face}\n\nIDENTITY PRESERVATION LOG:\n${identityLog}` },
+                  { inlineData: { data: face.imageBase64, mimeType: 'image/png' } }
+                ]
+              },
+              config: { temperature: 0.1 }
+            });
 
-          let enhancedFaceBase64 = "";
-          const candidate = faceResponse.candidates?.[0];
-          
-          if (candidate?.content?.parts) {
-            for (const part of candidate.content.parts) {
-              if (part.inlineData) {
-                enhancedFaceBase64 = part.inlineData.data;
-                break;
+            const candidate = faceResponse.candidates?.[0];
+
+            if (candidate?.content?.parts) {
+              for (const part of candidate.content.parts) {
+                if (part.inlineData) {
+                  enhancedFaceBase64 = part.inlineData.data;
+                  break;
+                }
               }
             }
-          }
 
-          if (!enhancedFaceBase64) {
-            console.warn(`Face ${i + 1} enhancement returned no image. Reason: ${candidate?.finishReason}`);
+            if (enhancedFaceBase64) {
+              console.log(`Face ${i + 1} enhanced successfully on attempt ${attempt + 1}.`);
+              break; // Thành công, thoát khỏi vòng retry
+            } else {
+              console.warn(`Face ${i + 1} attempt ${attempt + 1}: no image returned. Reason: ${candidate?.finishReason}`);
+              lastError = new Error(`No image returned: ${candidate?.finishReason}`);
+            }
+          } catch (faceErr) {
+            lastError = faceErr;
+            console.error(`Face ${i + 1} attempt ${attempt + 1} error:`, faceErr);
           }
-
-          enhancedFaces.push({
-            ...face,
-            imageBase64: enhancedFaceBase64 || face.imageBase64
-          });
-        } catch (faceErr) {
-          console.error(`Error enhancing face ${i + 1}:`, faceErr);
-          // Push original face if enhancement fails to avoid losing it
-          enhancedFaces.push(face);
         }
+        if (!enhancedFaceBase64) {
+          console.warn(`Face ${i + 1} failed after ${MAX_RETRIES + 1} attempts. Using original.`);
+        }
+        enhancedFaces.push({
+          ...face,
+          imageBase64: enhancedFaceBase64 || face.imageBase64
+        });
 
         if (i < faces.length - 1) {
           console.log("Waiting for rate limit...");
@@ -153,6 +172,8 @@ export const useHybridPipeline = () => {
         }
       }
       console.log("Face enhancement loop completed.");
+      setStatus({ step: `Bước 4: Hoàn tất ${enhancedFaces.length} khuôn mặt ✓`, progress: 80 });
+      await delay(400);
     } else {
       enhancedFaces.push(...faces);
     }
@@ -188,7 +209,7 @@ export const useHybridPipeline = () => {
       }
 
       // --- STEP 5: Finalize (Backend Tool) ---
-      setStatus({ step: 'Bước 5: Hoàn thiện & Đóng gói...', progress: 90 });
+      setStatus({ step: `Bước 5: Ghép ảnh & Upscale ${options.selectedResolution}...`, progress: 90 });
       const finalizeRes = await fetch('/api/finalize-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

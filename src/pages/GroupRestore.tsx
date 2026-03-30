@@ -159,6 +159,21 @@ CRITICAL INSTRUCTIONS:
 - NO HALLUCINATION (CLOTHING): Do NOT change the color of trousers or shirts. If the woman is wearing white trousers, they MUST remain white. Do NOT turn them black.
 - IDENTITY: Maintain the exact facial structure and expressions based on the analysis.
 ${colorization === 'colorize' ? '- Colorize the image naturally with realistic skin tones and clothing colors.' : '- Keep the original tones but clean them up.'}
+${colorization === 'colorize' ? `
+COLOR GRADING RULES (strict):
+
+Vietnamese/Asian skin tone: use warm #C8A882 to #A07850 range, NOT orange/pink.
+White áo dài or dress shirts: PURE white #F5F5F0, remove ALL yellow aging stains.
+Dark trousers/suits: neutral dark gray #2A2A2A or navy, NOT black blob.
+Hair: match original dark/grey ratio exactly, do NOT whiten dark hair.
+` : ''}
+DAMAGE REPAIR PRIORITY ORDER:
+
+
+First: INPAINT all white scratches, tears, and physical damage.
+Then: Remove dust, noise, paper texture (hexagonal dots, film grain).
+Last: Sharpen edges and enhance detail.
+DO NOT sharpen damaged areas before inpainting them.
 OUTPUT REQUIREMENT: Generate the restored image with the highest possible pixel density and structural clarity. Ensure that fine details like skin pores and fabric weaves are preserved for high-resolution upscaling (up to 4K).
 The result must be a clean, high-fidelity base image for face stitching.`,
         face: `Enhance this face from a group photo. 
