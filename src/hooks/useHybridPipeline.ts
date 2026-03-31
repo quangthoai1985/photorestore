@@ -6,10 +6,10 @@ export interface PipelineOptions {
   selectedResolution: string;
   colorization: boolean;
   faceEnhancement: boolean;
-  clothingEnhancement: boolean;
-  maxFaces: string;
-  detectionSensitivity: number;
-  blendingSmoothness: number;
+  clothingEnhancement?: boolean;  // optional, default true
+  maxFaces?: string;               // optional, default 'all'
+  detectionSensitivity?: number;   // optional, default 50
+  blendingSmoothness?: number;     // optional, default 60
   prompts: {
     analysis: string;
     enhancement: string;
@@ -30,8 +30,34 @@ export const useHybridPipeline = () => {
 
   const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
+  const generateWithRetry = async (ai: GoogleGenAI, params: any, maxRetries = 2) => {
+    let lastError: any = null;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const retryDelay = attempt * 5000;
+          console.log(`API Retry ${attempt}/${maxRetries}, waiting ${retryDelay}ms...`);
+          await delay(retryDelay);
+        }
+        return await ai.models.generateContent(params);
+      } catch (err: any) {
+        console.error(`API Attempt ${attempt + 1} failed:`, err);
+        lastError = err;
+        // Do not retry on 400 Bad Request
+        if (err?.status === 400 || err?.message?.includes('400')) {
+          throw err;
+        }
+      }
+    }
+    throw lastError;
+  };
+
   const runPipeline = async (originalImage: string, options: PipelineOptions) => {
     setIsProcessing(true);
+    const clothingEnhancement = options.clothingEnhancement ?? true;
+    const maxFaces = options.maxFaces ?? 'all';
+    const detectionSensitivity = options.detectionSensitivity ?? 50;
+    const blendingSmoothness = options.blendingSmoothness ?? 60;
     setError(null);
     setStatus({ step: 'Khởi tạo hệ thống...', progress: 5 });
 
@@ -45,7 +71,7 @@ export const useHybridPipeline = () => {
 
       // --- STEP 1: Analysis (Frontend AI) ---
       setStatus({ step: 'Bước 1: Phân tích hình ảnh...', progress: 10 });
-      const analysisResponse = await ai.models.generateContent({
+      const analysisResponse = await generateWithRetry(ai, {
         model: options.selectedModel,
         contents: {
           parts: [
@@ -60,7 +86,7 @@ export const useHybridPipeline = () => {
 
       // --- STEP 2: Base Enhancement (Frontend AI) ---
       setStatus({ step: 'Bước 2: Phục hồi tổng thể...', progress: 30 });
-      const enhancementResponse = await ai.models.generateContent({
+      const enhancementResponse = await generateWithRetry(ai, {
         model: options.selectedModel,
         contents: {
           parts: [
@@ -86,8 +112,8 @@ export const useHybridPipeline = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: enhancedBase64,
-          detectionSensitivity: options.detectionSensitivity,
-          maxFaces: options.maxFaces
+          detectionSensitivity: detectionSensitivity,
+          maxFaces: maxFaces
         })
       });
       
@@ -117,49 +143,41 @@ export const useHybridPipeline = () => {
         const MAX_RETRIES = 2;
         let enhancedFaceBase64 = "";
         let lastError: any = null;
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-          try {
-            if (attempt > 0) {
-              const retryDelay = attempt * 3000;
-              console.log(`Retry ${attempt}/${MAX_RETRIES} for face ${i + 1}, waiting ${retryDelay}ms...`);
-              await delay(retryDelay);
-            }
-            const faceResponse = await ai.models.generateContent({
-              model: options.selectedModel,
-              contents: {
-                parts: [
-                  { text: `${options.prompts.face}\n\nIDENTITY PRESERVATION LOG:\n${identityLog}` },
-                  { inlineData: { data: face.imageBase64, mimeType: 'image/png' } }
-                ]
-              },
-              config: { temperature: 0.1 }
-            });
+        
+        try {
+          const faceResponse = await generateWithRetry(ai, {
+            model: options.selectedModel,
+            contents: {
+              parts: [
+                { text: `${options.prompts.face}\n\nIDENTITY PRESERVATION LOG:\n${identityLog}` },
+                { inlineData: { data: face.imageBase64, mimeType: 'image/png' } }
+              ]
+            },
+            config: { temperature: 0.1 }
+          }, MAX_RETRIES);
 
-            const candidate = faceResponse.candidates?.[0];
+          const candidate = faceResponse.candidates?.[0];
 
-            if (candidate?.content?.parts) {
-              for (const part of candidate.content.parts) {
-                if (part.inlineData) {
-                  enhancedFaceBase64 = part.inlineData.data;
-                  break;
-                }
+          if (candidate?.content?.parts) {
+            for (const part of candidate.content.parts) {
+              if (part.inlineData) {
+                enhancedFaceBase64 = part.inlineData.data;
+                break;
               }
             }
-
-            if (enhancedFaceBase64) {
-              console.log(`Face ${i + 1} enhanced successfully on attempt ${attempt + 1}.`);
-              break; // Thành công, thoát khỏi vòng retry
-            } else {
-              console.warn(`Face ${i + 1} attempt ${attempt + 1}: no image returned. Reason: ${candidate?.finishReason}`);
-              lastError = new Error(`No image returned: ${candidate?.finishReason}`);
-            }
-          } catch (faceErr) {
-            lastError = faceErr;
-            console.error(`Face ${i + 1} attempt ${attempt + 1} error:`, faceErr);
           }
+
+          if (enhancedFaceBase64) {
+            console.log(`Face ${i + 1} enhanced successfully.`);
+          } else {
+            console.warn(`Face ${i + 1}: no image returned. Reason: ${candidate?.finishReason}`);
+          }
+        } catch (faceErr) {
+          console.error(`Face ${i + 1} error:`, faceErr);
         }
+        
         if (!enhancedFaceBase64) {
-          console.warn(`Face ${i + 1} failed after ${MAX_RETRIES + 1} attempts. Using original.`);
+          console.warn(`Face ${i + 1} failed. Using original.`);
         }
         enhancedFaces.push({
           ...face,
@@ -180,10 +198,10 @@ export const useHybridPipeline = () => {
 
       // --- STEP 4B: Clothing Enhancement (Frontend AI) ---
       let clothingEnhancedBase64 = null;
-      if (options.clothingEnhancement) {
+      if (clothingEnhancement) {
         setStatus({ step: 'Bước 4B: Tái tạo chi tiết trang phục...', progress: 80 });
         try {
-          const clothingResponse = await ai.models.generateContent({
+          const clothingResponse = await generateWithRetry(ai, {
             model: options.selectedModel,
             contents: {
               parts: [
@@ -217,7 +235,7 @@ export const useHybridPipeline = () => {
           baseImageBase64: enhancedBase64,
           clothingImageBase64: clothingEnhancedBase64,
           faces: enhancedFaces,
-          blendingSmoothness: options.blendingSmoothness,
+          blendingSmoothness: blendingSmoothness,
           selectedResolution: options.selectedResolution
         })
       });

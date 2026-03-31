@@ -172,7 +172,7 @@ app.post('/api/process-hybrid', async (req, res) => {
 // ----------------------------------------------------------------------
 app.post('/api/finalize-image', async (req, res) => {
   try {
-    const { baseImageBase64, clothingImageBase64, faces, blendingSmoothness = 40, selectedResolution = '1K' } = req.body;
+    const { baseImageBase64, clothingImageBase64, faces, blendingSmoothness = 60, selectedResolution = '1K' } = req.body;
     console.log('[finalize-image] faces count:', faces?.length ?? 0, '| resolution:', selectedResolution);
     if (!baseImageBase64) return res.status(400).json({ error: 'Missing baseImageBase64' });
 
@@ -233,8 +233,8 @@ app.post('/api/finalize-image', async (req, res) => {
 
         // Apply feathering mask (Increased for smoother blending)
         const featherRatio = (blendingSmoothness / 100) * 0.5;
-        const feather = Math.max(2, Math.floor(Math.min(width, height) * featherRatio));
-        const stdDev = Math.max(0.5, feather / 1.5);
+        const feather = Math.max(8, Math.floor(Math.min(width, height) * featherRatio));
+        const stdDev = Math.max(2, feather / 1.2);
         const innerWidth = Math.max(1, width - feather * 2);
         const innerHeight = Math.max(1, height - feather * 2);
 
@@ -266,43 +266,79 @@ app.post('/api/finalize-image', async (req, res) => {
           .png()
           .toBuffer();
 
-        // Color normalization: lấy mẫu màu tại vùng cổ/vai (ngay dưới mặt)
-        // để điều chỉnh brightness của mặt khớp với cơ thể
+        // Advanced color normalization: match face to surrounding body area
         let normalizedFace = featheredFace;
         try {
-          const imgWidth = metadata.width || 1024;
-          const imgHeight = metadata.height || 1024;
-          const neckY = Math.min(y + height, imgHeight - 1);
-          const neckSampleHeight = Math.max(4, Math.floor(height * 0.08));
-          const neckSampleWidth = Math.floor(width * 0.4);
-          const neckSampleX = Math.floor(x + width * 0.3);
-          const neckSampleY = Math.min(neckY, imgHeight - neckSampleHeight - 1);
-          if (neckSampleX + neckSampleWidth <= imgWidth &&
-              neckSampleY + neckSampleHeight <= imgHeight) {
-            const neckStats = await sharp(baseBuffer)
+          const imgMeta = await sharp(finalImageBuffer).metadata();
+          const imgWidth = imgMeta.width || 1024;
+          const imgHeight = imgMeta.height || 1024;
+
+          // Sample 3 zones around the face for robust color matching
+          const sampleZones = [
+            // Zone 1: Neck area (directly below face)
+            {
+              left: Math.max(0, Math.floor(x + width * 0.3)),
+              top: Math.min(imgHeight - 20, y + height + 5),
+              width: Math.floor(width * 0.4),
+              height: Math.max(4, Math.floor(height * 0.08))
+            },
+            // Zone 2: Left shoulder area
+            {
+              left: Math.max(0, x - Math.floor(width * 0.2)),
+              top: Math.floor(y + height * 0.6),
+              width: Math.floor(width * 0.2),
+              height: Math.floor(height * 0.15)
+            },
+            // Zone 3: Right shoulder area  
+            {
+              left: Math.min(imgWidth - 20, x + width + 5),
+              top: Math.floor(y + height * 0.6),
+              width: Math.floor(width * 0.2),
+              height: Math.floor(height * 0.15)
+            }
+          ].filter(z =>
+            z.left >= 0 && z.top >= 0 &&
+            z.left + z.width <= imgWidth &&
+            z.top + z.height <= imgHeight &&
+            z.width > 4 && z.height > 4
+          );
+
+          if (sampleZones.length > 0) {
+            // Get stats from surrounding area
+            const surroundStats = await Promise.all(
+              sampleZones.map(z => sharp(finalImageBuffer).extract(z).stats())
+            );
+
+            // Average brightness across all zones
+            const surroundBrightness = surroundStats.reduce(
+              (sum, s) => sum + s.channels[0].mean, 0
+            ) / surroundStats.length;
+
+            // Get face brightness (center region only, avoid edges)
+            const faceCenterW = Math.max(4, Math.floor(width * 0.5));
+            const faceCenterH = Math.max(4, Math.floor(height * 0.5));
+            const faceStats = await sharp(featheredFace)
               .extract({
-                left: neckSampleX,
-                top: neckSampleY,
-                width: neckSampleWidth,
-                height: neckSampleHeight
+                left: Math.floor(width * 0.25),
+                top: Math.floor(height * 0.2),
+                width: faceCenterW,
+                height: faceCenterH
               })
               .stats();
-            const faceStats = await sharp(featheredFace)
-              .stats();
-
-            const neckBrightness = neckStats.channels[0].mean;
             const faceBrightness = faceStats.channels[0].mean;
 
-            if (faceBrightness > 10 && neckBrightness > 10) {
-              const ratio = neckBrightness / faceBrightness;
-              // Chỉ điều chỉnh nếu chênh lệch > 8% (tránh overcorrect)
-              if (Math.abs(ratio - 1.0) > 0.08) {
-                const clampedRatio = Math.max(0.75, Math.min(1.25, ratio));
+            if (faceBrightness > 10 && surroundBrightness > 10) {
+              const ratio = surroundBrightness / faceBrightness;
+              const clampedRatio = Math.max(0.80, Math.min(1.20, ratio));
+
+              if (Math.abs(clampedRatio - 1.0) > 0.05) {
                 normalizedFace = await sharp(featheredFace)
-                  .modulate({ brightness: clampedRatio })
+                  .modulate({ brightness: clampedRatio, saturation: 0.97 })
                   .png()
                   .toBuffer();
-                console.log(`[finalize] Face ${x},${y}: brightness adjusted by ${clampedRatio.toFixed(2)}x`);
+                console.log(
+                  `[finalize] Face @(${x},${y}): brightness ratio=${clampedRatio.toFixed(3)}`
+                );
               }
             }
           }
@@ -321,6 +357,13 @@ app.post('/api/finalize-image', async (req, res) => {
       finalImageBuffer = await sharp(finalImageBuffer)
         .composite(composites)
         .toBuffer();
+      
+      // Second-pass: global tone unification sau composite
+      // Giảm nhẹ local contrast để thống nhất tone toàn ảnh
+      finalImageBuffer = await sharp(finalImageBuffer)
+        .modulate({ saturation: 0.98 })
+        .toBuffer();
+      console.log('[finalize] Global tone unification applied.');
       
       console.log("Compositing completed successfully.");
     }
