@@ -1,142 +1,89 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Upload, 
-  Image as ImageIcon, 
-  Sparkles, 
-  Download, 
-  RefreshCw, 
+import {
+  Upload,
+  Sparkles,
+  Download,
+  RefreshCw,
   AlertCircle,
   CheckCircle2,
+  ArrowLeft,
   Zap,
   ShieldCheck,
   Key,
+  ChevronRight,
+  Palette,
+  Shirt,
+  Eye,
+  Camera,
+  Layers,
   Users,
-  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ImageSlider } from '../components/ImageSlider';
+import { FloatingPopup } from '../components/FloatingPopup';
 import { Link } from 'react-router-dom';
-import { useHybridPipeline, PipelineOptions } from '../hooks/useHybridPipeline';
+import {
+  useGeminiPipeline,
+  ModelType,
+  ResolutionType,
+  AnalysisResult,
+  RestoreOptions,
+} from '../hooks/useGeminiPipeline';
 
-// --- Constants ---
-const GROUP_ANALYSIS_PROMPT = [
-  'You are a professional photo analyst.',
-  'Analyze this photograph with forensic precision. Output a structured report:',
-  '',
-  'PHOTO TYPE: [portrait/group/wedding/family/event/document]',
-  'PRINT MEDIUM: [glossy print / matte print / newspaper / digital / unknown]',
-  'ERA: [decade estimate based on clothing, hairstyle, print quality]',
-  'COLOR MODE: [color / black-and-white / sepia / faded-color]',
-  '',
-  'DAMAGE INVENTORY (list each issue):',
-  '- Physical damage: scratches, tears, holes — location and severity',
-  '- Chemical damage: yellowing, fading, stains — location',
-  '- Optical artifacts: light bands, reflections, scan lines — location',
-  '- Compression: JPEG artifacts, noise, blur — severity 1-10',
-  '',
-  'SUBJECTS:',
-  '- Count: number of people',
-  '- Face quality: sharp / soft / damaged — per person if different',
-  '- Dominant skin tone: warm / neutral / cool',
-  '',
-  'CLOTHING COLORS (critical for restoration):',
-  'List each major garment with actual color',
-  '',
-  'BACKGROUND: describe fully',
-  '',
-  'RESTORATION PRIORITY: which areas need most work'
-].join('\n');
+type PopupStep = 'none' | 'analyzing' | 'analysis-result' | 'model' | 'resolution' | 'options' | 'processing' | 'upscale';
+type CompareMode = 'original-vs-current' | 'gemini-vs-upscaled';
 
-const GROUP_ENHANCEMENT_PROMPT = [
-  'You are a master photo restorer with 30 years experience.',
-  'Your task: produce a SINGLE complete high-quality restored image.',
-  '',
-  'RESTORATION RULES — follow strictly in this order:',
-  '',
-  'STEP 1 — DAMAGE REMOVAL (inpaint first, sharpen last):',
-  '- REMOVE all white scratches, tears, dust spots by inpainting surrounding texture.',
-  '- Remove horizontal light bands and reflection artifacts from re-photographing a print.',
-  '- Remove paper texture, hexagonal dot patterns, film grain.',
-  '- Remove yellowing and chemical stains while preserving original tones.',
-  '',
-  'STEP 2 — TONE AND COLOR RESTORATION:',
-  '- Establish a single unified global white balance across the ENTIRE image.',
-  '- If black-and-white: add natural color. Vietnamese/Asian skin = warm #C8A882.',
-  '- If color but faded: restore saturation naturally. Do NOT oversaturate.',
-  '- White garments: pure #F5F5F0. Dark suits: #2A2A2A, NOT flat black.',
-  '- Hair: preserve exact original grey/dark ratio. Do NOT whiten dark hair.',
-  '',
-  'STEP 3 — FACE ENHANCEMENT within the global image not isolated:',
-  '- Sharpen ALL faces simultaneously while maintaining their relationship',
-  '  to each other and to the ambient lighting of the scene.',
-  '- Eyes must be sharp, bright, natural — not glassy.',
-  '- Skin: smooth but with natural pore texture. No plastic skin effect.',
-  '- Preserve each persons exact age, bone structure, expression.',
-  '',
-  'STEP 4 — CLOTHING AND BACKGROUND:',
-  '- Restore fabric texture: weaves, lace patterns, embroidery details.',
-  '- Background must be fully restored — no soft blurry or hallucinated zones.',
-  '- Every centimeter of the image must be sharp and detailed.',
-  '',
-  'STEP 5 — EDGE RECONSTRUCTION:',
-  '- If photo has black bars or messy crop edges, extend background naturally.',
-  '- No frame borders, no vignette, no artificial borders.',
-  '',
-  'CRITICAL: Output ONE complete image. Every area must be equally sharp.',
-  'No region should be blurry or soft.',
-  'Treat the image as if taken today with a modern high-resolution camera.'
-].join('\n');
-
-const GROUP_FACE_PROMPT = [
-  'You are a portrait retouching specialist.',
-  'Enhance this face crop from a group photo restoration.',
-  '',
-  'ABSOLUTE RULES:',
-  '1. IDENTITY LOCK: Preserve exact bone structure, eye shape, nose, mouth.',
-  '   Do NOT morph or idealize. This is a real person.',
-  '2. AGE PRESERVATION: Keep exact age visible in original. No de-aging.',
-  '3. SKIN TONE MATCH: Output skin tone MUST match the color temperature',
-  '   of the original photo scene warm/cool/neutral as established globally.',
-  '4. HAIR FIDELITY: Dark hair stays dark. Grey ratio stays exact.',
-  '',
-  'ENHANCEMENT GOALS:',
-  '- Eyes: iris clarity, catchlight restoration, lash definition',
-  '- Skin: remove noise and damage artifacts only. Preserve natural texture.',
-  '- Lips: natural color, not over-saturated',
-  '- Hair: strand definition, natural sheen',
-  '',
-  'OUTPUT: High-resolution face suitable for compositing into a restored photo.',
-  'The color temperature must NOT shift from the input.'
-].join('\n');
-
-const GROUP_CLOTHING_PROMPT = [
-  'Focus exclusively on clothing and fabric restoration.',
-  'Enhance texture sharpness and detail of all garments in this image.',
-  '- Lace, embroidery, patterns: restore fine detail without hallucinating new ones',
-  '- White fabrics: crisp, clean, no yellow cast',
-  '- Dark fabrics: rich depth, visible weave texture',
-  '- Natural fabric drape and shadow — do not flatten',
-  'Do NOT change any colors. Do NOT touch faces or background.'
-].join('\n');
-
-type ModelType = 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview';
-type ResolutionType = '1K' | '2K' | '4K';
+const CLOTHING_PRESETS: Record<string, string> = {
+  "Vest Nam (Truyền thống)": "A professional black business suit, crisp white button-down dress shirt, and a neatly tied classic silk necktie.",
+  "Vest Nam (Lịch lãm)": "A professional navy blue business suit, crisp white button-down dress shirt, worn without a necktie.",
+  "Áo dài (Nữ)": "Traditional Vietnamese Ao Dai with a high standing collar, elegant silk fabric.",
+  "Sơ mi trắng": "A clean, crisp white button-down dress shirt with a classic pointed collar.",
+};
 
 export default function GroupRestore() {
-  const { runPipeline, isProcessing, status, error, setError } = useHybridPipeline();
+  const {
+    isProcessing,
+    isAnalyzing,
+    status,
+    setStatus,
+    error,
+    setError,
+    analysis,
+    analyzeImage,
+    restoreImage,
+    resetState,
+  } = useGeminiPipeline();
+
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [restoredImage, setRestoredImage] = useState<string | null>(null);
-  
-  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-image-preview');
-  const [selectedResolution, setSelectedResolution] = useState<ResolutionType>('1K');
+  const [geminiRestoredImage, setGeminiRestoredImage] = useState<string | null>(null);
+  const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState<CompareMode>('original-vs-current');
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [popupStep, setPopupStep] = useState<PopupStep>('none');
 
-  // --- API Key Check ---
+  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-image-preview');
+  const [selectedResolution, setSelectedResolution] = useState<ResolutionType>('2K');
+  const [colorize, setColorize] = useState(false);
+  const [replaceClothing, setReplaceClothing] = useState(false);
+  const [clothingOption, setClothingOption] = useState('Vest Nam (Truyền thống)');
+  const [clothingText, setClothingText] = useState('');
+  const [upscaleScaleFactor, setUpscaleScaleFactor] = useState(2);
+  const [upscaleCreativity, setUpscaleCreativity] = useState(0.3);
+  const [isUpscaling, setIsUpscaling] = useState(false);
+  const [upscaleProgress, setUpscaleProgress] = useState(0);
+  const [upscaleStatusText, setUpscaleStatusText] = useState('Sẵn sàng upscale');
+  const [upscalePredictionId, setUpscalePredictionId] = useState<string | null>(null);
+
+  const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
   useEffect(() => {
     const checkKey = async () => {
       if (window.aistudio?.hasSelectedApiKey) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
+      } else {
+        setHasApiKey(true);
       }
     };
     checkKey();
@@ -149,350 +96,742 @@ export default function GroupRestore() {
     }
   };
 
-  // --- Handlers ---
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        setError("Dung lượng ảnh tối đa là 10MB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setOriginalImage(event.target?.result as string);
-        setRestoredImage(null);
-        setError(null);
-      };
-      reader.readAsDataURL(file);
+  const handleFile = (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Dung lượng ảnh tối đa là 10MB.");
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUri = event.target?.result as string;
+      setOriginalImage(dataUri);
+      setRestoredImage(null);
+      setGeminiRestoredImage(null);
+      setUpscaledImage(null);
+      setCompareMode('original-vs-current');
+      setError(null);
+      resetState();
+      setPopupStep('analyzing');
+      analyzeImage(dataUri).then((result) => {
+        setPopupStep('analysis-result');
+        if (result.is_black_white || result.is_sepia) setColorize(true);
+        if (result.recommended_model === 'gemini_pro') {
+          setSelectedModel('gemini-3-pro-image-preview');
+        } else {
+          setSelectedModel('gemini-3.1-flash-image-preview');
+        }
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
-  const restorePhoto = async () => {
-    if (!originalImage) return;
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+  };
 
-    const options: PipelineOptions = {
-      selectedModel,
-      selectedResolution,
-      colorization: false,
-      faceEnhancement: true,
-      clothingEnhancement: true,
-      maxFaces: 'all',
-      detectionSensitivity: 50,
-      blendingSmoothness: 40,
-      prompts: {
-        analysis: GROUP_ANALYSIS_PROMPT,
-        enhancement: GROUP_ENHANCEMENT_PROMPT,
-        face: GROUP_FACE_PROMPT,
-        clothing: GROUP_CLOTHING_PROMPT
-      }
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  const startRestore = async () => {
+    if (!originalImage || !analysis) return;
+    setPopupStep('processing');
+
+    const selectedClothingPrompt = replaceClothing
+      ? (clothingOption === 'Tùy chỉnh' ? clothingText : CLOTHING_PRESETS[clothingOption] || '')
+      : '';
+
+    const options: RestoreOptions = {
+      model: selectedModel,
+      resolution: selectedResolution,
+      colorize,
+      replaceClothing,
+      clothingPrompt: selectedClothingPrompt,
     };
 
     try {
-      const result = await runPipeline(originalImage, options);
+      const result = await restoreImage(originalImage, analysis, options);
+      setGeminiRestoredImage(result);
+      setUpscaledImage(null);
       setRestoredImage(result);
-    } catch (err) {
-      // handled by hook
+      setCompareMode('original-vs-current');
+      setUpscaleProgress(0);
+      setUpscaleStatusText('Sẵn sàng upscale');
+      setUpscalePredictionId(null);
+      // Removed auto-show upscale popup - now shows button instead
+    } catch {
+      setPopupStep('none');
     }
   };
 
-  const handleDownload = () => {
-    if (restoredImage) {
-      const link = document.createElement('a');
-      link.href = restoredImage;
-      link.download = `group-restored-${Date.now()}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  const startUpscale = async () => {
+    if (!restoredImage || isUpscaling) return;
+    setIsUpscaling(true);
+    setError(null);
+    setUpscaleProgress(5);
+    setUpscaleStatusText('Đang gửi yêu cầu upscale...');
+    setUpscalePredictionId(null);
+
+    try {
+      const startResponse = await fetch('/api/upscale-image/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageDataUri: restoredImage,
+          scaleFactor: upscaleScaleFactor,
+          creativity: upscaleCreativity,
+        }),
+      });
+
+      if (!startResponse.ok) {
+        const payload = await startResponse.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Upscale thất bại.');
+      }
+
+      const startData = await startResponse.json();
+      if (!startData?.predictionId) {
+        throw new Error('Không nhận được predictionId từ Replicate.');
+      }
+
+      setUpscalePredictionId(startData.predictionId);
+      setUpscaleProgress(Number(startData.progress ?? 10));
+      setUpscaleStatusText(startData.message || 'Replicate đang xử lý...');
+
+      let done = false;
+      while (!done) {
+        await wait(1400);
+        const statusResponse = await fetch(`/api/upscale-image/status/${encodeURIComponent(startData.predictionId)}`);
+        if (!statusResponse.ok) {
+          const payload = await statusResponse.json().catch(() => ({}));
+          throw new Error(payload?.error || 'Không lấy được tiến trình upscale.');
+        }
+        const statusData = await statusResponse.json();
+        setUpscaleProgress(Number(statusData.progress ?? 0));
+        setUpscaleStatusText(statusData.message || 'Replicate đang xử lý...');
+
+        if (statusData.status === 'succeeded') {
+          if (!statusData?.upscaledImage) {
+            throw new Error('Upscale không trả về ảnh hợp lệ.');
+          }
+          setUpscaledImage(statusData.upscaledImage);
+          setRestoredImage(statusData.upscaledImage);
+          setCompareMode('gemini-vs-upscaled');
+          setUpscaleProgress(100);
+          setUpscaleStatusText('Upscale hoàn tất');
+          setPopupStep('none');
+          done = true;
+        } else if (statusData.status === 'failed' || statusData.status === 'canceled') {
+          throw new Error(statusData.error || 'Upscale thất bại.');
+        }
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Không thể upscale ảnh.');
+    } finally {
+      setIsUpscaling(false);
+    }
+  };
+
+  const downloadGeminiImage = () => {
+    if (!geminiRestoredImage) return;
+    const link = document.createElement('a');
+    link.href = geminiRestoredImage;
+    link.download = `QUANGTHOAI_GROUP_${selectedResolution}_${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadUpscaledImage = () => {
+    if (!upscaledImage) return;
+    const link = document.createElement('a');
+    link.href = upscaledImage;
+    link.download = `QUANGTHOAI_GROUP_${selectedResolution}_${upscaleScaleFactor}x_UPSCALE_${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const resetAll = () => {
+    setOriginalImage(null);
+    setRestoredImage(null);
+    setGeminiRestoredImage(null);
+    setUpscaledImage(null);
+    setCompareMode('original-vs-current');
+    setPopupStep('none');
+    setUpscaleScaleFactor(2);
+    setUpscaleCreativity(0.3);
+    setIsUpscaling(false);
+    setUpscaleProgress(0);
+    setUpscaleStatusText('Sẵn sàng upscale');
+    setUpscalePredictionId(null);
+    resetState();
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'light': return 'text-green-400 bg-green-500/10 border-green-500/20';
+      case 'moderate': return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
+      case 'heavy': return 'text-orange-400 bg-orange-500/10 border-orange-500/20';
+      case 'extreme': return 'text-red-400 bg-red-500/10 border-red-500/20';
+      default: return 'text-white/60 bg-white/5 border-white/10';
+    }
+  };
+
+  const getSeverityLabel = (severity: string) => {
+    switch (severity) {
+      case 'light': return 'Nhẹ';
+      case 'moderate': return 'Trung bình';
+      case 'heavy': return 'Nặng';
+      case 'extreme': return 'Rất nặng';
+      default: return severity;
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-white/20">
-      <div className="max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8">
-        {/* Header */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <div className="flex items-center gap-4">
-            <Link 
-              to="/"
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
+    <div className="h-screen w-screen overflow-hidden bg-[#050505] text-white font-sans selection:bg-emerald-500/30 relative">
+      {/* Background Glows */}
+      <div className="fixed top-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/5 blur-[150px] rounded-full pointer-events-none" />
+      <div className="fixed bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-teal-600/5 blur-[150px] rounded-full pointer-events-none" />
+
+      {/* Top Bar */}
+      <header className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between p-4 md:p-6">
+        <div className="flex items-center gap-3">
+          <Link to="/" className="p-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-colors">
+            <ArrowLeft className="w-4 h-4 text-white" />
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <Users className="w-4 h-4 text-white" />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Phục hồi Ảnh Nhóm</h1>
-              <p className="text-white/50 text-sm mt-1">
-                Tối ưu hóa cho ảnh có nhiều khuôn mặt và chi tiết phức tạp
-              </p>
+              <h1 className="text-sm md:text-base font-bold tracking-tight">QUANGTHOAI RESTORE</h1>
+              <p className="text-[9px] text-white/30 uppercase tracking-widest">Phục hồi Ảnh Nhóm / Gia Đình</p>
             </div>
           </div>
-          
-          {!hasApiKey ? (
-            <button
-              onClick={handleSelectKey}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 rounded-full transition-colors text-sm font-medium border border-emerald-500/20"
+        </div>
+
+        <button
+          onClick={handleSelectKey}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+            hasApiKey
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              : 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse'
+          }`}
+        >
+          {hasApiKey ? <ShieldCheck className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
+          <span className="hidden sm:inline">{hasApiKey ? 'API Connected' : 'Chọn API Key'}</span>
+        </button>
+      </header>
+
+      {/* Main Workspace */}
+      <main
+        className="w-full h-full flex items-center justify-center"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+      >
+        <AnimatePresence mode="wait">
+          {!originalImage ? (
+            <motion.div
+              key="upload"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="group relative w-full max-w-xl aspect-video bg-white/[0.02] border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center gap-6 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all duration-500 mx-4 cursor-pointer"
+              onClick={() => document.getElementById('group-file-input')?.click()}
             >
-              <Key className="w-4 h-4" />
-              Kết nối Gemini API
-            </button>
+              <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/10 transition-all duration-500">
+                <Upload className="w-8 h-8 text-white/30 group-hover:text-emerald-400 transition-colors" />
+              </div>
+              <div className="text-center px-4">
+                <p className="text-lg font-medium text-white/80">Kéo thả ảnh nhóm vào đây</p>
+                <p className="text-sm text-white/30 mt-1">Ảnh gia đình, nhóm bạn, tập thể (Tối đa 10MB)</p>
+              </div>
+              <label
+                className="px-8 py-3 bg-white text-black rounded-full text-sm font-semibold cursor-pointer hover:bg-emerald-50 transition-colors shadow-lg"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Chọn từ máy tính
+                <input id="group-file-input" type="file" className="hidden" accept="image/*" onChange={onFileChange} />
+              </label>
+            </motion.div>
           ) : (
-            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-full text-sm font-medium border border-emerald-500/20">
-              <ShieldCheck className="w-4 h-4" />
-              Đã kết nối API
-            </div>
-          )}
-        </header>
-
-        <div className="grid lg:grid-cols-[380px_1fr] gap-8">
-          {/* Sidebar */}
-          <aside className="space-y-6">
-            <div className="p-5 bg-white/5 border border-white/10 rounded-2xl space-y-6">
-              
-              {/* Phần 1 — AI Model */}
-              <div className="space-y-3">
-                <label className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Mô hình AI
-                </label>
-                <div className="grid gap-2">
-                  <button
-                    onClick={() => setSelectedModel('gemini-3-pro-image-preview')}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      selectedModel === 'gemini-3-pro-image-preview'
-                        ? 'bg-blue-500/10 border-blue-500/50'
-                        : 'bg-black/20 border-white/5 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`font-medium ${selectedModel === 'gemini-3-pro-image-preview' ? 'text-blue-400' : 'text-white/80'}`}>
-                        Gemini 3 Pro
-                      </span>
-                      {selectedModel === 'gemini-3-pro-image-preview' && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
-                    </div>
-                    <p className="text-xs text-white/50">Tốt nhất — tự động phân tích & phục hồi toàn diện</p>
-                  </button>
-                  
-                  <button
-                    onClick={() => setSelectedModel('gemini-3.1-flash-image-preview')}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      selectedModel === 'gemini-3.1-flash-image-preview'
-                        ? 'bg-blue-500/10 border-blue-500/50'
-                        : 'bg-black/20 border-white/5 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`font-medium ${selectedModel === 'gemini-3.1-flash-image-preview' ? 'text-blue-400' : 'text-white/80'}`}>
-                        Gemini 3.1 Flash
-                      </span>
-                      {selectedModel === 'gemini-3.1-flash-image-preview' && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
-                    </div>
-                    <p className="text-xs text-white/50">Nhanh hơn — phù hợp ảnh ít hư hỏng</p>
-                  </button>
-                </div>
-              </div>
-
-              {/* Phần 2 — Độ phân giải */}
-              <div className="space-y-3">
-                <label className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-2">
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  Độ phân giải xuất
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['1K', '2K', '4K'] as ResolutionType[]).map((res) => (
-                    <button
-                      key={res}
-                      onClick={() => setSelectedResolution(res)}
-                      className={`py-2 px-3 rounded-lg border text-sm font-medium transition-all ${
-                        selectedResolution === res
-                          ? 'bg-white text-black border-white'
-                          : 'bg-black/20 border-white/10 text-white/60 hover:bg-white/5'
-                      }`}
-                    >
-                      {res}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Phần 3 — Info box */}
-              <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-3">
-                <p className="text-xs font-bold text-white/40 uppercase tracking-widest">
-                  Hệ thống tự động
-                </p>
-                <div className="space-y-2">
-                  {[
-                    "Phân tích chất liệu & mức độ hư hỏng",
-                    "Phục hồi tổng thể — nền, trang phục, khuôn mặt",
-                    "Tự động nhận diện & làm nét mọi khuôn mặt",
-                    "Khử xước, bụi, vết ố và dải sáng phản chiếu",
-                    "Upscale lên độ phân giải đã chọn"
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                      <span className="text-[11px] text-white/50">{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <div className="pt-2">
-                <button
-                  onClick={restorePhoto}
-                  disabled={!originalImage || isProcessing || !hasApiKey}
-                  className="w-full py-3.5 px-4 bg-white text-black rounded-xl font-medium hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isProcessing ? (
-                    <>
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      Đang xử lý...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-5 h-5" />
-                      Bắt đầu Phục hồi
-                    </>
-                  )}
-                </button>
-                
-                {!hasApiKey && (
-                  <p className="text-xs text-red-400 text-center mt-3">
-                    Vui lòng kết nối Gemini API để sử dụng
-                  </p>
+            <motion.div
+              key="workspace"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full h-full flex flex-col items-center justify-center p-4 pt-20 pb-24 md:p-12 md:pt-24 md:pb-28"
+            >
+              <div className="relative flex-1 w-full max-w-6xl flex items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                {restoredImage ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ImageSlider
+                      before={
+                        compareMode === 'gemini-vs-upscaled' && geminiRestoredImage && upscaledImage
+                          ? geminiRestoredImage
+                          : originalImage
+                      }
+                      after={
+                        compareMode === 'gemini-vs-upscaled' && geminiRestoredImage && upscaledImage
+                          ? upscaledImage
+                          : restoredImage
+                      }
+                      beforeLabel={compareMode === 'gemini-vs-upscaled' ? 'GEMINI' : 'GOC'}
+                      afterLabel={compareMode === 'gemini-vs-upscaled' ? 'UPSCALE' : upscaledImage ? 'UPSCALED' : 'PHUC HOI'}
+                    />
+                  </div>
+                ) : (
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <img src={originalImage} alt="Original" className="max-w-full max-h-full object-contain" />
+                    {isProcessing && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-6 z-10">
+                        <div className="relative w-20 h-20">
+                          <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full" />
+                          <motion.div
+                            className="absolute inset-0 border-4 border-t-emerald-500 rounded-full"
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          />
+                          <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-emerald-400" />
+                        </div>
+                        <div className="text-center space-y-3 px-8">
+                          <p className="text-lg font-bold">{status.step}</p>
+                          <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <motion.div
+                              className="h-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${status.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-          </aside>
 
-          {/* Main Content Area */}
-          <main className="min-h-[600px] bg-white/5 border border-white/10 rounded-2xl flex flex-col relative overflow-hidden">
-            {!originalImage ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6">
-                  <Upload className="w-10 h-10 text-white/40" />
-                </div>
-                <h3 className="text-xl font-medium mb-2">Tải ảnh lên để bắt đầu</h3>
-                <p className="text-white/40 max-w-md mb-8">
-                  Hỗ trợ JPG, PNG. Dung lượng tối đa 10MB.
-                  Hệ thống sẽ tự động nhận diện và phục hồi từng khuôn mặt.
-                </p>
-                <label className="cursor-pointer group relative">
-                  <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="relative px-6 py-3 bg-white/10 hover:bg-white/15 border border-white/10 rounded-full transition-colors flex items-center gap-2">
-                    <ImageIcon className="w-5 h-5" />
-                    <span>Chọn ảnh từ máy tính</span>
-                  </div>
-                  <input 
-                    type="file" 
-                    className="hidden" 
-                    accept="image/jpeg, image/png, image/webp" 
-                    onChange={onFileChange}
-                  />
-                </label>
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col">
-                {/* Toolbar */}
-                <div className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-black/20">
-                  <div className="flex items-center gap-3">
-                    <label className="cursor-pointer p-2 hover:bg-white/10 rounded-lg transition-colors text-white/60 hover:text-white" title="Tải ảnh khác">
-                      <Upload className="w-4 h-4" />
-                      <input type="file" className="hidden" accept="image/*" onChange={onFileChange} />
-                    </label>
-                  </div>
-                  {restoredImage && (
+              <div className="flex items-center gap-4 mt-4">
+                <button onClick={resetAll} className="flex items-center gap-2 text-sm text-white/40 hover:text-white">
+                  <RefreshCw className="w-4 h-4" />
+                  Chọn ảnh khác
+                </button>
+
+                {geminiRestoredImage && upscaledImage && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={handleDownload}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm font-medium"
+                      onClick={() => setCompareMode('original-vs-current')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                        compareMode === 'original-vs-current'
+                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                          : 'bg-white/[0.03] border-white/10 text-white/55 hover:bg-white/[0.06]'
+                      }`}
                     >
-                      <Download className="w-4 h-4" />
-                      Tải xuống
+                      Gốc / Hiện tại
                     </button>
-                  )}
-                </div>
+                    <button
+                      onClick={() => setCompareMode('gemini-vs-upscaled')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                        compareMode === 'gemini-vs-upscaled'
+                          ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
+                          : 'bg-white/[0.03] border-white/10 text-white/55 hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      Gemini / Upscale
+                    </button>
+                  </div>
+                )}
 
-                {/* Image Area */}
-                <div className="flex-1 relative bg-black/40 p-4 flex items-center justify-center min-h-[500px]">
-                  <AnimatePresence mode="wait">
-                    {restoredImage ? (
-                      <motion.div
-                        key="slider"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="w-full h-full"
-                      >
-                        <ImageSlider 
-                          original={originalImage} 
-                          restored={restoredImage} 
-                        />
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="original"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="relative max-w-full max-h-full"
-                      >
-                        <img 
-                          src={originalImage} 
-                          alt="Original" 
-                          className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                        />
-                        
-                        {/* Processing Overlay */}
-                        {isProcessing && (
-                          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center p-6">
-                            <div className="w-full max-w-md space-y-6">
-                              <div className="flex items-center justify-between text-sm font-medium">
-                                <span className="text-blue-400 flex items-center gap-2">
-                                  <RefreshCw className="w-4 h-4 animate-spin" />
-                                  {status?.step || 'Đang khởi tạo...'}
-                                </span>
-                                <span>{status?.progress || 0}%</span>
-                              </div>
-                              <p className="text-xs text-white/40 mt-1">
-                                Hệ thống đang tự động phân tích và tối ưu...
-                              </p>
-                              
-                              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                                <motion.div 
-                                  className="h-full bg-blue-500 rounded-full"
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${status?.progress || 0}%` }}
-                                  transition={{ duration: 0.5 }}
-                                />
-                              </div>
-                              
-                              <p className="text-xs text-center text-white/40">
-                                Quá trình này có thể mất vài phút tùy thuộc vào số lượng khuôn mặt trong ảnh.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+{restoredImage && (
+              <div className="flex items-center gap-3">
+                {upscaledImage ? (
+                  <>
+                    <button onClick={downloadGeminiImage} className="flex items-center gap-2 px-5 py-2.5 bg-white text-black hover:bg-emerald-50 rounded-full text-sm font-bold shadow-lg">
+                      <Download className="w-4 h-4" />
+                      Gemini ({selectedResolution})
+                    </button>
+                    <button onClick={downloadUpscaledImage} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 rounded-full text-sm font-bold transition-all">
+                      <Download className="w-4 h-4" />
+                      Upscale ({upscaleScaleFactor}x)
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={downloadGeminiImage} className="flex items-center gap-2 px-6 py-2.5 bg-white text-black hover:bg-emerald-50 rounded-full text-sm font-bold shadow-lg">
+                      <Download className="w-4 h-4" />
+                      Tải xuống ({selectedResolution})
+                    </button>
+                    <button onClick={() => setPopupStep('upscale')} className="flex items-center gap-2 px-5 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 rounded-full text-sm font-bold transition-all">
+                      <Sparkles className="w-4 h-4" />
+                      Upscale
+                    </button>
+                  </>
+                )}
               </div>
             )}
-            
-            {/* Error Toast */}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* Error Toast */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3 z-50 max-w-md backdrop-blur-xl"
+          >
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-200/80">{error}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── POPUP 1: ANALYZING ──────────────────────────────────── */}
+      <FloatingPopup isOpen={popupStep === 'analyzing'}>
+        <div className="p-8 flex flex-col items-center text-center gap-6">
+          <div className="relative w-20 h-20">
+            <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full" />
+            <motion.div
+              className="absolute inset-0 border-4 border-t-emerald-500 border-r-emerald-500/50 rounded-full"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+            />
+            <Eye className="absolute inset-0 m-auto w-8 h-8 text-emerald-400" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold mb-2">Đang phân tích ảnh nhóm…</h3>
+            <p className="text-sm text-white/40">AI đang đếm số người và đánh giá mức hư hại</p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-white/30">
+            <Camera className="w-3.5 h-3.5" />
+            Model: gemini-3.1-flash-lite-preview
+          </div>
+        </div>
+      </FloatingPopup>
+
+      {/* ── POPUP 1B: ANALYSIS RESULT ──────────────────────────── */}
+      <FloatingPopup isOpen={popupStep === 'analysis-result'}>
+        <div className="p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Phân tích hoàn tất</h3>
+              <p className="text-xs text-white/40">Kết quả từ AI</p>
+            </div>
+          </div>
+
+          {analysis && (
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Loại ảnh</p>
+                <p className="text-sm font-medium">{analysis.photo_type.replace(/_/g, ' ')}</p>
+              </div>
+              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Số người</p>
+                <p className="text-sm font-medium">{analysis.subject_count} người</p>
+              </div>
+              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Kích thước mặt</p>
+                <p className="text-sm font-medium">{analysis.face_sizes}</p>
+              </div>
+              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-1">Mức hư hại</p>
+                <p className={`text-sm font-bold px-2 py-0.5 rounded-lg inline-block border ${getSeverityColor(analysis.damage_severity)}`}>
+                  {getSeverityLabel(analysis.damage_severity)}
+                </p>
+              </div>
+              {analysis.damage_types.length > 0 && (
+                <div className="col-span-2 p-3 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Loại hư hại</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {analysis.damage_types.map((type) => (
+                      <span key={type} className="px-2 py-0.5 bg-white/5 text-white/60 rounded-md text-[10px] border border-white/5">{type}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(analysis.is_black_white || analysis.is_sepia) && (
+                <div className="col-span-2 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+                  <p className="text-xs text-emerald-400 font-medium">
+                    📷 Ảnh {analysis.is_black_white ? 'đen trắng' : 'sepia'} — đã bật Lên màu AI tự động
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={() => setPopupStep('model')}
+            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-2xl font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-emerald-600/20"
+          >
+            Tiếp tục
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </FloatingPopup>
+
+      {/* ── POPUP 2: MODEL ─────────────────────────────────────── */}
+      <FloatingPopup isOpen={popupStep === 'model'}>
+        <div className="p-6 md:p-8">
+          <h3 className="text-lg font-bold mb-1">Chọn Model AI</h3>
+          <p className="text-sm text-white/40 mb-6">Khuyến nghị dùng Pro cho ảnh nhóm</p>
+
+          <div className="space-y-3 mb-6">
+            <button
+              onClick={() => setSelectedModel('gemini-3.1-flash-image-preview')}
+              className={`w-full flex items-start gap-4 p-4 rounded-2xl border transition-all text-left ${
+                selectedModel === 'gemini-3.1-flash-image-preview'
+                  ? 'bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/20'
+                  : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06]'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                selectedModel === 'gemini-3.1-flash-image-preview' ? 'bg-emerald-500/20' : 'bg-white/5'
+              }`}>
+                <Zap className={`w-5 h-5 ${selectedModel === 'gemini-3.1-flash-image-preview' ? 'text-emerald-400' : 'text-white/30'}`} />
+              </div>
+              <div>
+                <p className="font-bold text-sm">Gemini 3.1 Flash Image</p>
+                <p className="text-xs text-white/40 mt-1">Nhanh (~30s) • Phù hợp ảnh nhóm ít hư hại</p>
+                {analysis?.recommended_model === 'gemini_flash' && (
+                  <span className="inline-block mt-2 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-md border border-emerald-500/20">✦ AI GỢI Ý</span>
+                )}
+              </div>
+            </button>
+
+            <button
+              onClick={() => setSelectedModel('gemini-3-pro-image-preview')}
+              className={`w-full flex items-start gap-4 p-4 rounded-2xl border transition-all text-left ${
+                selectedModel === 'gemini-3-pro-image-preview'
+                  ? 'bg-purple-500/10 border-purple-500/40 ring-1 ring-purple-500/20'
+                  : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06]'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                selectedModel === 'gemini-3-pro-image-preview' ? 'bg-purple-500/20' : 'bg-white/5'
+              }`}>
+                <ShieldCheck className={`w-5 h-5 ${selectedModel === 'gemini-3-pro-image-preview' ? 'text-purple-400' : 'text-white/30'}`} />
+              </div>
+              <div>
+                <p className="font-bold text-sm">Gemini 3 Pro Image</p>
+                <p className="text-xs text-white/40 mt-1">Chất lượng cao nhất • Tái tạo khuôn mặt nhỏ tốt nhất</p>
+                {analysis?.recommended_model === 'gemini_pro' && (
+                  <span className="inline-block mt-2 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-md border border-emerald-500/20">✦ AI GỢI Ý</span>
+                )}
+              </div>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setPopupStep('resolution')}
+            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-2xl font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-emerald-600/20"
+          >
+            Tiếp tục
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </FloatingPopup>
+
+      {/* ── POPUP 3: RESOLUTION ────────────────────────────────── */}
+      <FloatingPopup isOpen={popupStep === 'resolution'}>
+        <div className="p-6 md:p-8">
+          <h3 className="text-lg font-bold mb-1">Chất lượng đầu ra</h3>
+          <p className="text-sm text-white/40 mb-6">Chọn độ phân giải cho ảnh phục hồi</p>
+
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {([
+              { id: '1K' as ResolutionType, label: '1K', desc: '1024px', sub: 'Nhanh • Nhẹ' },
+              { id: '2K' as ResolutionType, label: '2K', desc: '2048px', sub: 'Cân bằng' },
+              { id: '4K' as ResolutionType, label: '4K', desc: '4096px', sub: 'Tốt nhất' },
+            ]).map((res) => (
+              <button
+                key={res.id}
+                onClick={() => setSelectedResolution(res.id)}
+                className={`p-4 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
+                  selectedResolution === res.id
+                    ? 'bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/20'
+                    : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06]'
+                }`}
+              >
+                <span className={`text-2xl font-black ${selectedResolution === res.id ? 'text-emerald-400' : 'text-white/60'}`}>
+                  {res.label}
+                </span>
+                <span className="text-[10px] text-white/30">{res.desc}</span>
+                <span className="text-[9px] text-white/20 mt-1">{res.sub}</span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setPopupStep('options')}
+            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-2xl font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-emerald-600/20"
+          >
+            Tiếp tục
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </FloatingPopup>
+
+      {/* ── POPUP 4: OPTIONS ───────────────────────────────────── */}
+      <FloatingPopup isOpen={popupStep === 'options'}>
+        <div className="p-6 md:p-8">
+          <h3 className="text-lg font-bold mb-1">Tùy chọn nâng cao</h3>
+          <p className="text-sm text-white/40 mb-6">Bạn có thể bỏ qua nếu không cần</p>
+
+          <div className="space-y-4 mb-6">
+            <button
+              onClick={() => setColorize(!colorize)}
+              className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                colorize ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06]'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Palette className={`w-5 h-5 ${colorize ? 'text-emerald-400' : 'text-white/30'}`} />
+                <div className="text-left">
+                  <p className="text-sm font-bold">Lên màu AI</p>
+                  <p className="text-[10px] text-white/40">Tô màu tự nhiên cho ảnh đen trắng</p>
+                </div>
+              </div>
+              <div className={`w-10 h-5 rounded-full relative transition-colors ${colorize ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                <motion.div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full" animate={{ x: colorize ? 20 : 0 }} />
+              </div>
+            </button>
+
+            <button
+              onClick={() => { setReplaceClothing(!replaceClothing); }}
+              className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                replaceClothing ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06]'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Shirt className={`w-5 h-5 ${replaceClothing ? 'text-emerald-400' : 'text-white/30'}`} />
+                <div className="text-left">
+                  <p className="text-sm font-bold">Thay trang phục</p>
+                  <p className="text-[10px] text-white/40">Thay đổi quần áo trong ảnh</p>
+                </div>
+              </div>
+              <div className={`w-10 h-5 rounded-full relative transition-colors ${replaceClothing ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                <motion.div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full" animate={{ x: replaceClothing ? 20 : 0 }} />
+              </div>
+            </button>
+
             <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
-                  className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl shadow-2xl backdrop-blur-md"
-                >
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <p className="text-sm">{error}</p>
+              {replaceClothing && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                  <div className="pl-4 border-l-2 border-emerald-500/20 space-y-2">
+                    {[...Object.keys(CLOTHING_PRESETS), "Tùy chỉnh"].map((opt) => (
+                      <button key={opt} onClick={() => setClothingOption(opt)}
+                        className={`w-full py-2 px-3 rounded-xl border text-xs font-medium text-left transition-all ${
+                          clothingOption === opt ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/[0.03] border-white/5 text-white/50 hover:bg-white/[0.06]'
+                        }`}
+                      >{opt}</button>
+                    ))}
+                    {clothingOption === 'Tùy chỉnh' && (
+                      <input type="text" value={clothingText} onChange={(e) => setClothingText(e.target.value)}
+                        placeholder="Ví dụ: Áo vest đen, Áo dài xanh..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50"
+                      />
+                    )}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
-          </main>
+          </div>
+
+          <button
+            onClick={startRestore}
+            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-2xl font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-emerald-600/20"
+          >
+            <Sparkles className="w-4 h-4" />
+            Bắt đầu phục hồi
+          </button>
         </div>
-      </div>
+      </FloatingPopup>
+
+      <FloatingPopup isOpen={popupStep === 'upscale'}>
+        <div className="p-6 md:p-8">
+          <h3 className="text-lg font-bold mb-1">Upscale ảnh (tùy chọn)</h3>
+          <p className="text-sm text-white/40 mb-6">Dùng Crystal Upscaler sau khi Gemini phục hồi xong</p>
+
+          <div className="space-y-5 mb-6">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold">Scale factor</p>
+                <span className="text-xs text-emerald-300">{upscaleScaleFactor}x</span>
+              </div>
+              <input
+                type="range"
+                min={2}
+                max={4}
+                step={1}
+                value={upscaleScaleFactor}
+                onChange={(e) => setUpscaleScaleFactor(Number(e.target.value))}
+                className="w-full accent-emerald-500"
+              />
+              <p className="text-[10px] text-white/35 mt-1">2x nhanh hơn, 4x chi tiết cao hơn nhưng lâu hơn</p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold">Creativity</p>
+                <span className="text-xs text-teal-300">{upscaleCreativity.toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={upscaleCreativity}
+                onChange={(e) => setUpscaleCreativity(Number(e.target.value))}
+                className="w-full accent-teal-500"
+              />
+              <p className="text-[10px] text-white/35 mt-1">Giá trị thấp giữ tự nhiên, giá trị cao thêm chi tiết mạnh hơn</p>
+            </div>
+          </div>
+
+          <div className="mb-6 p-4 rounded-2xl border border-white/10 bg-white/[0.03]">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-white/70">Trạng thái upscale</p>
+              <p className="text-xs text-emerald-300 font-semibold">{Math.round(upscaleProgress)}%</p>
+            </div>
+            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.max(0, Math.min(100, upscaleProgress))}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-white/55 mt-2">{upscaleStatusText}</p>
+            {upscalePredictionId && (
+              <p className="text-[10px] text-white/30 mt-1">Prediction ID: {upscalePredictionId}</p>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setPopupStep('none')}
+              className="flex-1 py-3 rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-sm font-bold text-white/80 transition-all"
+              disabled={isUpscaling}
+            >
+              Bỏ qua
+            </button>
+            <button
+              onClick={startUpscale}
+              disabled={isUpscaling}
+              className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-sm font-bold text-white transition-all disabled:opacity-60"
+            >
+              {isUpscaling ? 'Đang upscale...' : 'Upscale với Crystal'}
+            </button>
+          </div>
+        </div>
+      </FloatingPopup>
     </div>
   );
 }

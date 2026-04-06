@@ -3,9 +3,16 @@ import React, { useState, useRef, useEffect } from 'react';
 interface ImageSliderProps {
   before: string;
   after: string;
+  beforeLabel?: string;
+  afterLabel?: string;
 }
 
-export const ImageSlider: React.FC<ImageSliderProps> = ({ before, after }) => {
+export const ImageSlider: React.FC<ImageSliderProps> = ({
+  before,
+  after,
+  beforeLabel = 'GOC',
+  afterLabel = 'PHUC HOI',
+}) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,10 +105,10 @@ export const ImageSlider: React.FC<ImageSliderProps> = ({ before, after }) => {
 
       {/* Labels */}
       <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded text-xs text-white font-medium z-20">
-        GỐC
+        {beforeLabel}
       </div>
       <div className="absolute bottom-4 right-4 bg-blue-600/80 backdrop-blur-md px-3 py-1 rounded text-xs text-white font-medium z-20">
-        PHỤC HỒI
+        {afterLabel}
       </div>
     </div>
   );

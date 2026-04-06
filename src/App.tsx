@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Portal from './pages/Portal';
 import PortraitRestore from './pages/PortraitRestore';
 import GroupRestore from './pages/GroupRestore';
-import ProRetouch from './pages/ProRetouch';
+
 import { Key } from 'lucide-react';
 
 declare global {
@@ -78,7 +78,7 @@ export default function App() {
         <Route path="/" element={<Portal />} />
         <Route path="/portrait-restore" element={<PortraitRestore />} />
         <Route path="/group-restore" element={<GroupRestore />} />
-        <Route path="/pro-retouch" element={<ProRetouch />} />
+
       </Routes>
     </BrowserRouter>
   );
