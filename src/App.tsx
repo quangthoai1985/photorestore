@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Portal from './pages/Portal';
 import PortraitRestore from './pages/PortraitRestore';
 import GroupRestore from './pages/GroupRestore';
+import IdPhoto from './pages/IdPhoto';
 
 import { Key } from 'lucide-react';
 
@@ -78,6 +79,7 @@ export default function App() {
         <Route path="/" element={<Portal />} />
         <Route path="/portrait-restore" element={<PortraitRestore />} />
         <Route path="/group-restore" element={<GroupRestore />} />
+        <Route path="/id-photo" element={<IdPhoto />} />
 
       </Routes>
     </BrowserRouter>

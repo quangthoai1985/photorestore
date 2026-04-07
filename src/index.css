@@ -6,7 +6,8 @@
 
 body {
   font-family: var(--font-sans);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

@@ -21,12 +21,11 @@ import {
   useGeminiPipeline,
   DEFAULT_ANALYSIS,
   ModelType,
-  ResolutionType,
   AnalysisResult,
   RestoreOptions,
 } from '../hooks/useGeminiPipeline';
 
-type Step = 'none' | 'analysis' | 'model' | 'resolution' | 'options' | 'processing';
+type Step = 'none' | 'analysis' | 'model' | 'options' | 'processing';
 
 const DAMAGE_TYPE_OPTIONS: AnalysisResult['damage_types'] = [
   'scratch',
@@ -88,8 +87,8 @@ export default function GroupRestore() {
   const [manualAnalysis, setManualAnalysisState] = useState<AnalysisResult>(DEFAULT_GROUP_ANALYSIS);
 
   const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-image-preview');
-  const [selectedResolution, setSelectedResolution] = useState<ResolutionType>('2K');
   const [colorize, setColorize] = useState(false);
+  const [subjectCountInput, setSubjectCountInput] = useState(String(DEFAULT_GROUP_ANALYSIS.subject_count));
 
   useEffect(() => {
     const checkKey = async () => {
@@ -141,9 +140,9 @@ export default function GroupRestore() {
       setError(null);
       resetState();
       syncAnalysis(DEFAULT_GROUP_ANALYSIS);
+      setSubjectCountInput(String(DEFAULT_GROUP_ANALYSIS.subject_count));
       setColorize(false);
       setSelectedModel('gemini-3-pro-image-preview');
-      setSelectedResolution('2K');
       setStep('analysis');
     };
     reader.readAsDataURL(file);
@@ -166,7 +165,6 @@ export default function GroupRestore() {
 
     const options: RestoreOptions = {
       model: selectedModel,
-      resolution: selectedResolution,
       colorize,
       replaceClothing: false,
       clothingPrompt: '',
@@ -185,7 +183,7 @@ export default function GroupRestore() {
     if (!restoredImage) return;
     const link = document.createElement('a');
     link.href = restoredImage;
-    link.download = `QUANGTHOAI_GROUP_${selectedResolution}_${Date.now()}.png`;
+    link.download = `QUANGTHOAI_GROUP_2K_${Date.now()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -196,14 +194,31 @@ export default function GroupRestore() {
     setRestoredImage(null);
     setStep('none');
     setColorize(false);
+    setSubjectCountInput(String(DEFAULT_GROUP_ANALYSIS.subject_count));
     setSelectedModel('gemini-3-pro-image-preview');
-    setSelectedResolution('2K');
     setManualAnalysisState(DEFAULT_GROUP_ANALYSIS);
     resetState();
   };
 
+  const handleSubjectCountChange = (value: string) => {
+    const digitsOnly = value.replace(/\D/g, '');
+    setSubjectCountInput(digitsOnly);
+
+    if (!digitsOnly) {
+      return;
+    }
+
+    updateAnalysis({ subject_count: Math.max(1, Math.min(20, Number(digitsOnly))) });
+  };
+
+  const commitSubjectCount = () => {
+    const normalized = Math.max(1, Math.min(20, Number(subjectCountInput) || 1));
+    setSubjectCountInput(String(normalized));
+    updateAnalysis({ subject_count: normalized });
+  };
+
   const activeStep = step === 'processing' ? 'options' : step;
-  const stepOrder: Step[] = ['analysis', 'model', 'resolution', 'options'];
+  const stepOrder: Step[] = ['analysis', 'model', 'options'];
   const activeStepIndex = Math.max(stepOrder.indexOf(activeStep), 0);
 
   const renderStepSection = (
@@ -251,7 +266,7 @@ export default function GroupRestore() {
   };
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-[#050505] font-sans text-white selection:bg-emerald-500/30">
+    <div className="relative min-h-screen w-full overflow-x-hidden overflow-y-auto bg-[#050505] font-sans text-white selection:bg-emerald-500/30 lg:h-screen lg:w-screen lg:overflow-hidden">
       <div className="pointer-events-none fixed right-[-10%] top-[-20%] h-[50%] w-[50%] rounded-full bg-emerald-600/5 blur-[150px]" />
       <div className="pointer-events-none fixed bottom-[-20%] left-[-10%] h-[50%] w-[50%] rounded-full bg-teal-600/5 blur-[150px]" />
 
@@ -267,7 +282,7 @@ export default function GroupRestore() {
         </button>
       </header>
 
-      <main className="h-full w-full" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+      <main className="w-full lg:h-full" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
         <AnimatePresence mode="wait">
           {!originalImage ? (
             <motion.div key="upload" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="flex h-full items-center justify-center p-4 pt-20 md:pt-24">
@@ -278,8 +293,8 @@ export default function GroupRestore() {
               </div>
             </motion.div>
           ) : (
-            <motion.div key="workspace" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="h-full w-full p-4 pb-24 pt-20 md:p-8 md:pb-10 md:pt-24">
-              <div className="mx-auto flex h-full w-full max-w-[1500px] flex-col gap-4 lg:flex-row">
+            <motion.div key="workspace" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full p-4 pb-24 pt-20 md:p-8 md:pb-10 md:pt-24 lg:h-full">
+              <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 lg:h-full lg:flex-row">
                 <div className="relative min-h-[320px] flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/40 lg:min-h-0">
                   {restoredImage ? (
                     <div className="flex h-full w-full items-center justify-center"><ImageSlider before={originalImage} after={restoredImage} beforeLabel="GOC" afterLabel="PHUC HOI" /></div>
@@ -291,7 +306,7 @@ export default function GroupRestore() {
                   )}
                 </div>
 
-                <aside className="w-full shrink-0 lg:w-[390px]"><div className="h-full rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"><div className="sticky top-0 z-10 border-b border-white/10 bg-[#050505]/90 px-4 py-4 backdrop-blur-xl"><p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-300/80">Restore Steps</p><h2 className="mt-2 text-lg font-bold text-white">Thiết lập phục hồi</h2><p className="mt-1 text-xs text-white/40">Chỉ dùng Gemini từ Frontend, đã bỏ hoàn toàn Upscale backend.</p></div><div className="space-y-3 p-4">
+                <aside className="w-full shrink-0 lg:w-[390px]"><div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl lg:h-full lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"><div className="sticky top-0 z-10 border-b border-white/10 bg-[#050505]/90 px-4 py-4 backdrop-blur-xl"><p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-300/80">Restore Steps</p><h2 className="mt-2 text-lg font-bold text-white">Thiết lập phục hồi</h2><p className="mt-1 text-xs text-white/40">Chỉ dùng Gemini từ Frontend, đã bỏ hoàn toàn Upscale backend.</p></div><div className="space-y-3 p-4">
                   {renderStepSection('analysis', '1', 'Xác nhận thông tin ảnh', 'Chọn metadata thủ công cho ảnh toàn cảnh có người.', analysis && (
                     <div className="space-y-5">
                       <div className="grid grid-cols-2 gap-3">
@@ -306,7 +321,7 @@ export default function GroupRestore() {
                           </select>
                         </label>
                         <label className="text-xs text-white/60">Số người
-                          <input type="number" min={1} max={20} value={analysis.subject_count} onChange={(e) => updateAnalysis({ subject_count: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })} className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none" />
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" value={subjectCountInput} onChange={(e) => handleSubjectCountChange(e.target.value)} onBlur={commitSubjectCount} className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none" />
                         </label>
                         <label className="text-xs text-white/60">Màu ảnh
                           <select value={analysis.is_black_white ? 'bw' : analysis.is_sepia ? 'sepia' : 'color'} onChange={(e) => {
@@ -326,23 +341,20 @@ export default function GroupRestore() {
                         </label>
                       </div>
                       <div><p className="mb-2 text-[10px] uppercase tracking-wider text-white/30">Loại hư hại</p><div className="flex flex-wrap gap-2">{DAMAGE_TYPE_OPTIONS.map((type) => { const active = analysis.damage_types.includes(type); return <button key={type} onClick={() => toggleDamageType(type)} className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-all ${active ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'}`}>{DAMAGE_TYPE_LABELS[type]}</button>; })}</div></div>
+                      <label className="block text-xs text-white/60">Ghi chú phục hồi bổ sung<textarea value={analysis.special_challenges ?? ''} onChange={(e) => updateAnalysis({ special_challenges: e.target.value.trim() ? e.target.value : null })} placeholder="Ví dụ: Quần áo nhân vật bị mờ hoặc hư hại nặng, hãy tái tạo chất liệu vải; phục hồi chi tiết nội thất, bàn ghế, bối cảnh phía sau..." rows={4} className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none" /><p className="mt-2 text-[11px] text-white/35">Nội dung này sẽ được ghép vào system prompt cùng các metadata phía trên.</p></label>
                       <button onClick={() => setStep('model')} className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-bold text-white transition-all hover:from-emerald-500 hover:to-teal-500">Tiếp tục sang bước 2</button>
                     </div>
                   ))}
 
                   {renderStepSection('model', '2', 'Chọn Model', 'Ảnh toàn cảnh có người thường nên ưu tiên Pro.', (
-                    <div className="space-y-3"><button onClick={() => setSelectedModel('gemini-3.1-flash-image-preview')} className={`w-full rounded-2xl border p-4 text-left transition-all ${selectedModel === 'gemini-3.1-flash-image-preview' ? 'border-emerald-500/40 bg-emerald-500/10 ring-1 ring-emerald-500/20' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><div className="flex items-start gap-4"><div className={`flex h-10 w-10 items-center justify-center rounded-xl ${selectedModel === 'gemini-3.1-flash-image-preview' ? 'bg-emerald-500/20' : 'bg-white/5'}`}><Zap className={`h-5 w-5 ${selectedModel === 'gemini-3.1-flash-image-preview' ? 'text-emerald-400' : 'text-white/30'}`} /></div><div><p className="text-sm font-bold">Gemini 3.1 Flash Image</p><p className="mt-1 text-xs text-white/40">Nhanh hơn, hợp ảnh ít hư hại.</p></div></div></button><button onClick={() => setSelectedModel('gemini-3-pro-image-preview')} className={`w-full rounded-2xl border p-4 text-left transition-all ${selectedModel === 'gemini-3-pro-image-preview' ? 'border-purple-500/40 bg-purple-500/10 ring-1 ring-purple-500/20' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><div className="flex items-start gap-4"><div className={`flex h-10 w-10 items-center justify-center rounded-xl ${selectedModel === 'gemini-3-pro-image-preview' ? 'bg-purple-500/20' : 'bg-white/5'}`}><ShieldCheck className={`h-5 w-5 ${selectedModel === 'gemini-3-pro-image-preview' ? 'text-purple-400' : 'text-white/30'}`} /></div><div><p className="text-sm font-bold">Gemini 3 Pro Image</p><p className="mt-1 text-xs text-white/40">Tái tạo ảnh nhóm tốt hơn.</p></div></div></button><button onClick={() => setStep('resolution')} className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-bold text-white transition-all hover:from-emerald-500 hover:to-teal-500">Tiếp tục sang bước 3</button></div>
+                    <div className="space-y-3"><button onClick={() => setSelectedModel('gemini-3.1-flash-image-preview')} className={`w-full rounded-2xl border p-4 text-left transition-all ${selectedModel === 'gemini-3.1-flash-image-preview' ? 'border-emerald-500/40 bg-emerald-500/10 ring-1 ring-emerald-500/20' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><div className="flex items-start gap-4"><div className={`flex h-10 w-10 items-center justify-center rounded-xl ${selectedModel === 'gemini-3.1-flash-image-preview' ? 'bg-emerald-500/20' : 'bg-white/5'}`}><Zap className={`h-5 w-5 ${selectedModel === 'gemini-3.1-flash-image-preview' ? 'text-emerald-400' : 'text-white/30'}`} /></div><div><p className="text-sm font-bold">Gemini 3.1 Flash Image</p><p className="mt-1 text-xs text-white/40">Nhanh hơn, hợp ảnh ít hư hại.</p></div></div></button><button onClick={() => setSelectedModel('gemini-3-pro-image-preview')} className={`w-full rounded-2xl border p-4 text-left transition-all ${selectedModel === 'gemini-3-pro-image-preview' ? 'border-purple-500/40 bg-purple-500/10 ring-1 ring-purple-500/20' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><div className="flex items-start gap-4"><div className={`flex h-10 w-10 items-center justify-center rounded-xl ${selectedModel === 'gemini-3-pro-image-preview' ? 'bg-purple-500/20' : 'bg-white/5'}`}><ShieldCheck className={`h-5 w-5 ${selectedModel === 'gemini-3-pro-image-preview' ? 'text-purple-400' : 'text-white/30'}`} /></div><div><p className="text-sm font-bold">Gemini 3 Pro Image</p><p className="mt-1 text-xs text-white/40">Tái tạo ảnh nhóm tốt hơn.</p></div></div></button><button onClick={() => setStep('options')} className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-bold text-white transition-all hover:from-emerald-500 hover:to-teal-500">Tiếp tục sang bước 3</button></div>
                   ), activeStepIndex < 1)}
 
-                  {renderStepSection('resolution', '3', 'Chất lượng đầu ra', 'Chọn độ phân giải phù hợp và bắt đầu restore.', (
-                    <div className="space-y-4"><div className="grid grid-cols-3 gap-3">{[{ id: '1K' as ResolutionType, label: '1K', desc: '1024px' }, { id: '2K' as ResolutionType, label: '2K', desc: '2048px' }, { id: '4K' as ResolutionType, label: '4K', desc: '4096px' }].map((res) => (<button key={res.id} onClick={() => setSelectedResolution(res.id)} className={`rounded-2xl border p-4 text-center transition-all ${selectedResolution === res.id ? 'border-emerald-500/40 bg-emerald-500/10 ring-1 ring-emerald-500/20' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><span className={`block text-2xl font-black ${selectedResolution === res.id ? 'text-emerald-400' : 'text-white/60'}`}>{res.label}</span><span className="mt-1 block text-[10px] text-white/30">{res.desc}</span></button>))}</div><button onClick={() => setStep('options')} className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-bold text-white transition-all hover:from-emerald-500 hover:to-teal-500">Tiếp tục sang bước 4</button></div>
+                  {renderStepSection('options', '3', 'Tùy chọn nâng cao', 'Bật lên màu nếu cần và bắt đầu phục hồi.', (
+                    <div className="space-y-4"><button onClick={() => setColorize(!colorize)} className={`w-full rounded-2xl border p-4 transition-all ${colorize ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3 text-left"><Palette className={`h-5 w-5 ${colorize ? 'text-emerald-400' : 'text-white/30'}`} /><div><p className="text-sm font-bold">Lên màu AI</p><p className="text-[10px] text-white/40">Tô màu tự nhiên cho ảnh đen trắng / sepia</p></div></div><div className={`relative h-5 w-10 rounded-full ${colorize ? 'bg-emerald-500' : 'bg-white/10'}`}><motion.div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white" animate={{ x: colorize ? 20 : 0 }} /></div></div></button><button onClick={startRestore} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3.5 text-sm font-bold text-white transition-all hover:from-emerald-500 hover:to-teal-500"><Sparkles className="h-4 w-4" />{isProcessing ? 'Đang phục hồi...' : 'Bắt đầu phục hồi'}</button></div>
                   ), activeStepIndex < 2)}
 
-                  {renderStepSection('options', '4', 'Tùy chọn nâng cao', 'Bật lên màu nếu cần và bắt đầu phục hồi.', (
-                    <div className="space-y-4"><button onClick={() => setColorize(!colorize)} className={`w-full rounded-2xl border p-4 transition-all ${colorize ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3 text-left"><Palette className={`h-5 w-5 ${colorize ? 'text-emerald-400' : 'text-white/30'}`} /><div><p className="text-sm font-bold">Lên màu AI</p><p className="text-[10px] text-white/40">Tô màu tự nhiên cho ảnh đen trắng / sepia</p></div></div><div className={`relative h-5 w-10 rounded-full ${colorize ? 'bg-emerald-500' : 'bg-white/10'}`}><motion.div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white" animate={{ x: colorize ? 20 : 0 }} /></div></div></button><button onClick={startRestore} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3.5 text-sm font-bold text-white transition-all hover:from-emerald-500 hover:to-teal-500"><Sparkles className="h-4 w-4" />{isProcessing ? 'Đang phục hồi...' : 'Bắt đầu phục hồi'}</button></div>
-                  ), activeStepIndex < 3)}
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 lg:sticky lg:bottom-4"><p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35">Quick Actions</p><div className="mt-3 space-y-3"><div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-white/60"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><CheckCircle2 className={`h-4 w-4 ${restoredImage ? 'text-emerald-300' : 'text-white/25'}`} /><span>{restoredImage ? 'Đã có ảnh Gemini để tải xuống' : 'Chưa có ảnh Gemini'}</span></div><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${restoredImage ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-white/[0.03] text-white/35'}`}>Gemini {restoredImage ? 'Ready' : 'Pending'}</span></div></div><button onClick={resetAll} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-bold text-white/80 transition-all hover:bg-white/[0.06] hover:text-white"><RefreshCw className="h-4 w-4" />Chọn ảnh khác</button>{restoredImage && <button onClick={downloadGeminiImage} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black shadow-lg transition-all hover:bg-emerald-50"><Download className="h-4 w-4 text-emerald-600" />Tải ảnh Gemini ({selectedResolution})</button>}</div></div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 lg:sticky lg:bottom-4"><p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35">Quick Actions</p><div className="mt-3 space-y-3"><div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-white/60"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><CheckCircle2 className={`h-4 w-4 ${restoredImage ? 'text-emerald-300' : 'text-white/25'}`} /><span>{restoredImage ? 'Đã có ảnh Gemini để tải xuống' : 'Chưa có ảnh Gemini'}</span></div><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${restoredImage ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-white/[0.03] text-white/35'}`}>Gemini {restoredImage ? 'Ready' : 'Pending'}</span></div></div><button onClick={resetAll} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-bold text-white/80 transition-all hover:bg-white/[0.06] hover:text-white"><RefreshCw className="h-4 w-4" />Chọn ảnh khác</button>{restoredImage && <button onClick={downloadGeminiImage} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black shadow-lg transition-all hover:bg-emerald-50"><Download className="h-4 w-4 text-emerald-600" />Tải ảnh Gemini (2K)</button>}</div></div>
                 </div></div></aside>
               </div>
             </motion.div>

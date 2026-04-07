@@ -65,11 +65,40 @@ Your primary objective is maintaining consistency across multiple subjects and t
 
 OUTPUT GOAL: A crystal-clear, high-resolution group photograph with perfect spatial depth and uniform sharpness across all subjects and the background.`;
 
+const ID_PHOTO_CORE_PROMPT = `===============================================================
+SYSTEM DIRECTIVE - ID PHOTO STUDIO RULES v1.0
+===============================================================
+
+You are an expert biometric-safe ID photo editor.
+Your mission: transform the uploaded portrait into a clean, realistic, formal ID photo while preserving the exact same person.
+
+HIGHEST PRIORITY:
+1. IDENTITY PRESERVATION ABOVE ALL ELSE.
+2. The face must remain the same person.
+3. Any correction to pose, gaze, expression, clothing, or background must NEVER turn the subject into a different person.
+
+STRICTLY FORBIDDEN:
+✗ Changing facial identity.
+✗ Beautifying the face into a different look.
+✗ Reshaping jaw, eyes, nose, lips, or cheek structure beyond subtle normalization.
+✗ Plastic skin, glamour retouching, fashion-editorial styling, or AI beauty filter look.
+✗ Introducing fantasy wardrobe, dramatic lighting, or artistic background.
+
+ALLOWED ONLY WHEN REQUESTED:
+✓ Subtle head straightening.
+✓ Subtle gaze correction toward camera.
+✓ Mild expression normalization for formal ID usage.
+✓ Clothing replacement with realistic formal attire.
+✓ Background replacement with clean studio-style solid background.
+
+OUTPUT GOAL:
+A realistic Vietnamese-friendly formal ID photo with exact identity retention, studio cleanliness, and natural skin texture.
+===============================================================`;
+
 // ─────────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────────
 export type ModelType = 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview';
-export type ResolutionType = '1K' | '2K' | '4K';
 
 export interface AnalysisResult {
   photo_type: string;
@@ -96,11 +125,44 @@ export interface PipelineStatus {
 
 export interface RestoreOptions {
   model: ModelType;
-  resolution: ResolutionType;
   colorize: boolean;
   replaceClothing: boolean;
   clothingPrompt: string;
 }
+
+export type IdPhotoAspectRatio = '3:4' | '4:3' | '4:6' | '6:4' | '2:3' | '3:2' | '1:1';
+export type IdPhotoBackgroundMode = 'white' | 'blue' | 'gray' | 'custom';
+export type IdPhotoGaze = 'keep' | 'look_straight' | 'slight_frontal_adjust';
+export type IdPhotoExpression = 'keep' | 'neutral' | 'soft_smile' | 'serious';
+export type IdPhotoPose =
+  | 'keep'
+  | 'standard_id'
+  | 'straighten_head'
+  | 'level_shoulders'
+  | 'neutral_formal_angle_15'
+  | 'neutral_three_quarter_soft'
+  | 'male_formal_angle_15'
+  | 'male_three_quarter_soft'
+  | 'female_formal_angle_15'
+  | 'female_three_quarter_soft'
+  | 'female_soft_shoulder_angle';
+export type IdPhotoCrop = 'auto_id' | 'head_shoulders' | 'half_body';
+
+export interface IdPhotoOptions {
+  model: ModelType;
+  aspectRatio: IdPhotoAspectRatio;
+  cropStyle: IdPhotoCrop;
+  backgroundMode: IdPhotoBackgroundMode;
+  backgroundCustomPrompt: string | null;
+  replaceClothing: boolean;
+  clothingPrompt: string | null;
+  gazeDirection: IdPhotoGaze;
+  expressionPreset: IdPhotoExpression;
+  poseCorrection: IdPhotoPose;
+  additionalInstructions: string | null;
+}
+
+const DEFAULT_OUTPUT_RESOLUTION = '2K';
 
 const API_TIMEOUT_MS = 120_000;
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -268,7 +330,7 @@ Estimated era    : ${analysisData.era_estimate}
 Damage types     : ${analysisData.damage_types.length > 0 ? analysisData.damage_types.join(', ') : 'general aging'}
 Damage severity  : ${analysisData.damage_severity}
 Background       : ${analysisData.background_complexity} complexity · importance: ${analysisData.background_importance}
-Output resolution: ${options.resolution} — maximize detail for this resolution
+Output resolution: ${DEFAULT_OUTPUT_RESOLUTION} — maximize detail for this resolution
 Colorize option : ${options.colorize ? 'enabled by user (Lên màu)' : 'disabled by user'}
 ${analysisData.special_challenges ? `Special challenge: ${analysisData.special_challenges}` : ''}`;
 
@@ -312,6 +374,115 @@ ${analysisData.special_challenges ? `Special challenge: ${analysisData.special_c
 
 CRITICAL: Output ONE complete restored image at the highest possible quality.
 Every area must be equally sharp. No region should be blurry or soft.`;
+
+    return prompt;
+  };
+
+  const buildIdPhotoPrompt = (options: IdPhotoOptions): string => {
+    const backgroundInstruction = options.backgroundMode === 'custom'
+      ? (options.backgroundCustomPrompt?.trim() || 'Clean solid studio background, uniform and distraction-free.')
+      : options.backgroundMode === 'white'
+      ? 'Pure white studio background, clean, uniform, and shadow-free.'
+      : options.backgroundMode === 'blue'
+      ? 'Solid light blue ID photo background, clean, uniform, and shadow-free.'
+      : 'Soft light gray studio background, neutral, clean, and uniform.';
+
+    const cropInstruction = options.cropStyle === 'auto_id'
+      ? 'Use standard ID photo framing with the head centered, balanced shoulders, and appropriate headroom.'
+      : options.cropStyle === 'head_shoulders'
+      ? 'Frame as a head-and-shoulders portrait with formal ID photo composition.'
+      : 'Frame as a half-body formal portrait while preserving ID-photo cleanliness and symmetry.';
+
+    const gazeInstruction = options.gazeDirection === 'keep'
+      ? 'Keep the original gaze direction only if already suitable for formal ID use.'
+      : options.gazeDirection === 'look_straight'
+      ? 'Adjust the eyes and face to look straight toward the camera in a natural way.'
+      : 'Subtly rotate the face toward a frontal camera-facing direction without altering identity.';
+
+    const expressionInstruction = options.expressionPreset === 'keep'
+      ? 'Keep the current expression if it is already suitable for a formal ID photo.'
+      : options.expressionPreset === 'neutral'
+      ? 'Set a natural neutral professional expression.'
+      : options.expressionPreset === 'soft_smile'
+      ? 'Apply only a very subtle polite smile suitable for a formal profile photo.'
+      : 'Set a calm serious formal expression without making the face harsher.';
+
+    const poseInstruction = options.poseCorrection === 'keep'
+      ? 'Keep the current pose only if it already looks appropriate for a formal ID portrait.'
+      : options.poseCorrection === 'standard_id'
+      ? 'Normalize the pose into a standard upright ID-photo pose with squared shoulders.'
+      : options.poseCorrection === 'straighten_head'
+      ? 'Straighten head tilt subtly while preserving facial proportions.'
+      : options.poseCorrection === 'level_shoulders'
+      ? 'Level the shoulders and make posture look balanced and formal.'
+      : options.poseCorrection === 'neutral_formal_angle_15'
+      ? 'Adjust the subject into a respectful neutral professional portrait pose with the body turned slightly about 10 to 15 degrees, upright posture, balanced shoulders, and a natural head position. Use only subtle rotation and preserve exact identity.'
+      : options.poseCorrection === 'neutral_three_quarter_soft'
+      ? 'Create a subtle neutral three-quarter professional portrait pose with a slight body angle, realistic studio posture, and conservative presentation. Do not stylize or alter identity.'
+      : options.poseCorrection === 'male_formal_angle_15'
+      ? 'Adjust the subject into a formal professional male portrait pose with the body turned slightly about 10 to 15 degrees, upright posture, balanced shoulders, and a confident but natural presentation suitable for office or profile use. Preserve exact identity.'
+      : options.poseCorrection === 'male_three_quarter_soft'
+      ? 'Create a subtle three-quarter formal male portrait pose with a slight body angle and clean professional posture. Keep the look respectful, natural, and realistic without altering identity.'
+      : options.poseCorrection === 'female_formal_angle_15'
+      ? 'Adjust the subject into a formal elegant female portrait pose with the body turned slightly about 10 to 15 degrees, natural upright posture, balanced shoulders, and realistic studio professionalism. Preserve exact identity.'
+      : options.poseCorrection === 'female_three_quarter_soft'
+      ? 'Create a subtle three-quarter formal female portrait pose with a gentle professional angle, realistic neck line, balanced shoulders, and natural studio posture. Preserve exact identity.'
+      : 'Adjust to a refined female professional portrait pose with a slight shoulder angle, elegant upright posture, calm studio presence, and conservative presentation. Keep it realistic and preserve exact identity.';
+
+    let prompt = `${ID_PHOTO_CORE_PROMPT}
+
+=== OUTPUT FORMAT ===
+- Final aspect ratio: ${options.aspectRatio}
+- Output resolution: ${DEFAULT_OUTPUT_RESOLUTION}
+- ${cropInstruction}
+- Maintain a clean studio composition suitable for official or semi-official ID use.
+
+=== BACKGROUND ===
+- ${backgroundInstruction}
+
+=== FACE AND IDENTITY SAFETY ===
+- Preserve exact facial identity, age, ethnicity, skin texture, and recognizable facial proportions.
+- If any adjustment is needed, keep it subtle and realistic.
+- The output must still be unmistakably the same person from the uploaded image.
+- Do not over-symmetrize or beautify the face.
+
+=== GAZE, EXPRESSION, AND POSE ===
+- ${gazeInstruction}
+- ${expressionInstruction}
+- ${poseInstruction}
+- Keep the result natural and believable as a real camera capture.
+- Use only subtle pose rotation or correction. Never redesign facial structure.
+- Do not create a fashion-editorial pose, glamour pose, or overly dramatic body angle.
+`;
+
+    if (options.replaceClothing && options.clothingPrompt) {
+      prompt += `
+
+=== CLOTHING ===
+- Replace clothing with: ${options.clothingPrompt}
+- Keep body proportions realistic and preserve neck, shoulder width, and posture naturally.
+- Clothing must look formal, realistic, and appropriate for Vietnamese ID/profile use.`;
+    } else {
+      prompt += `
+
+=== CLOTHING ===
+- Keep existing clothing unless it conflicts with the requested formal presentation.`;
+    }
+
+    if (options.additionalInstructions?.trim()) {
+      prompt += `
+
+=== USER EXTRA NOTES ===
+- ${options.additionalInstructions.trim()}`;
+    }
+
+    prompt += `
+
+=== FINAL QUALITY RULES ===
+- Output exactly one realistic ID-style portrait.
+- Keep edges of hair, ears, jawline, collar, and shoulders clean and believable.
+- Avoid AI artifacts, warped facial structure, extra teeth, incorrect eye alignment, or plastic smoothing.
+- Identity preservation is more important than aggressive beautification or aggressive correction.`;
 
     return prompt;
   };
@@ -362,7 +533,7 @@ restoreResponse = await generateWithRetry(
                   temperature: 0.1,
                   responseModalities: ["IMAGE", "TEXT"],
                   imageConfig: {
-                    imageSize: options.resolution,
+                    imageSize: DEFAULT_OUTPUT_RESOLUTION,
                   },
                 },
               },
@@ -412,6 +583,96 @@ restoreResponse = await generateWithRetry(
     }
   }, []);
 
+  const restoreIdPhoto = useCallback(async (
+    imageDataUri: string,
+    options: IdPhotoOptions
+  ): Promise<string> => {
+    setIsProcessing(true);
+    setError(null);
+    setStatus({ step: 'Đang chuẩn hóa ảnh ID…', progress: 10 });
+
+    try {
+      const ai = getAI();
+      const { base64Data, mimeType } = extractImagePayload(imageDataUri);
+      const userPrompt = buildIdPhotoPrompt(options);
+
+      setStatus({ step: 'Đang tạo ảnh ID photo… (có thể mất 1-2 phút)', progress: 30 });
+
+      const fallbackModels = restoreModelFallbacks(options.model);
+
+      let restoreResponse: any = null;
+      let lastRestoreError: any = null;
+
+      for (const model of fallbackModels) {
+        try {
+          if (model !== options.model) {
+            setStatus({ step: `Model ${options.model} phản hồi chậm, đang thử ${model}…`, progress: 35 });
+          }
+
+          restoreResponse = await generateWithRetry(
+            ai,
+            {
+              model,
+              contents: {
+                parts: [
+                  { inlineData: { data: base64Data, mimeType } },
+                  { text: userPrompt },
+                ],
+              },
+              config: {
+                temperature: 0.1,
+                responseModalities: ['IMAGE', 'TEXT'],
+                imageConfig: {
+                  imageSize: DEFAULT_OUTPUT_RESOLUTION,
+                },
+              },
+            },
+            `IdPhoto:${model}`
+          );
+
+          break;
+        } catch (err: any) {
+          lastRestoreError = err;
+          const isLastModel = model === fallbackModels[fallbackModels.length - 1];
+          const shouldFallbackToNextModel =
+            supportsImageInputError(err) ||
+            (isTimeoutError(err) && model === 'gemini-3.1-flash-image-preview');
+
+          if (isTimeoutError(err) && model === 'gemini-3.1-flash-image-preview' && !isLastModel) {
+            setStatus({ step: 'Gemini 3.1 Flash bị timeout, đang chuyển sang Gemini 3 Pro…', progress: 35 });
+          }
+
+          if (!shouldFallbackToNextModel || isLastModel) {
+            throw err;
+          }
+        }
+      }
+
+      if (!restoreResponse && lastRestoreError) {
+        throw lastRestoreError;
+      }
+
+      const restoredImage = extractImageFromResponse(restoreResponse);
+      if (!restoredImage) {
+        throw new Error('Model không trả về ảnh ID. Vui lòng thử lại hoặc đổi model khác.');
+      }
+
+      setStatus({ step: 'Hoàn tất ảnh ID! ✓', progress: 100 });
+      setIsProcessing(false);
+      return restoredImage;
+    } catch (err: any) {
+      console.error('[RestoreIdPhoto] Error:', err?.message ?? err);
+      const msg = supportsImageInputError(err)
+        ? 'Model hiện tại không hỗ trợ nhập ảnh ở endpoint này. Hãy thử lại, hoặc đổi sang model ảnh khác.'
+        : isTimeoutError(err)
+        ? `${err.message}. Vui lòng thử lại hoặc chọn ảnh nhỏ hơn.`
+        : err?.message ?? 'Đã xảy ra lỗi không xác định.';
+      setError(msg);
+      setIsProcessing(false);
+      throw err;
+    }
+  }, []);
+
   const resetState = useCallback(() => {
     setAnalysis(null);
     setError(null);
@@ -431,6 +692,7 @@ restoreResponse = await generateWithRetry(
     // Actions
     setManualAnalysis,
     restoreImage,
+    restoreIdPhoto,
     resetState,
   };
 };
