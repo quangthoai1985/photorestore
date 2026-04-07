@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Upload,
   Sparkles,
@@ -29,6 +29,8 @@ import {
   IdPhotoGaze,
   IdPhotoPose,
 } from '../hooks/useGeminiPipeline';
+import { useApiKeyStatus } from '../hooks/useApiKeyStatus';
+import { ApiKeyDialog } from '../components/ApiKeyDialog';
 
 type Step = 'none' | 'format' | 'subject' | 'style' | 'processing';
 
@@ -259,29 +261,12 @@ export default function IdPhoto() {
 
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
-  const [hasApiKey, setHasApiKey] = useState(false);
   const [step, setStep] = useState<Step>('none');
   const [options, setOptions] = useState<IdPhotoOptions>(DEFAULT_ID_OPTIONS);
   const [clothingPreset, setClothingPreset] = useState('male-white-shirt');
   const [customClothing, setCustomClothing] = useState('');
-
-  useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio?.hasSelectedApiKey) {
-        setHasApiKey(await window.aistudio.hasSelectedApiKey());
-      } else {
-        setHasApiKey(true);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleSelectKey = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
-      setHasApiKey(true);
-    }
-  };
+  const [isApiDialogOpen, setIsApiDialogOpen] = useState(false);
+  const { hasApiKey, refresh } = useApiKeyStatus();
 
   const updateOptions = (patch: Partial<IdPhotoOptions>) => {
     setOptions((current) => ({ ...current, ...patch }));
@@ -429,7 +414,7 @@ export default function IdPhoto() {
           </div>
         </div>
 
-        <button onClick={handleSelectKey} className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${hasApiKey ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'animate-pulse border-amber-500/20 bg-amber-500/10 text-amber-400'}`}>
+        <button onClick={() => setIsApiDialogOpen(true)} className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${hasApiKey ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'animate-pulse border-amber-500/20 bg-amber-500/10 text-amber-400'}`}>
           {hasApiKey ? <ShieldCheck className="h-3.5 w-3.5" /> : <Key className="h-3.5 w-3.5" />}
           <span className="hidden sm:inline">{hasApiKey ? 'API Connected' : 'Chọn API Key'}</span>
         </button>
@@ -642,6 +627,12 @@ export default function IdPhoto() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed bottom-6 left-1/2 z-50 flex max-w-md -translate-x-1/2 items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 backdrop-blur-xl"><AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" /><p className="text-sm text-red-200/80">{error}</p></motion.div>
         )}
       </AnimatePresence>
+      <ApiKeyDialog
+        isOpen={isApiDialogOpen}
+        hasApiKey={hasApiKey}
+        onClose={() => setIsApiDialogOpen(false)}
+        onSaved={refresh}
+      />
     </div>
   );
 }

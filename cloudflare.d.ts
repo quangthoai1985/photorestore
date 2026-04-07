@@ -1,0 +1,16 @@
+interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement;
+  first<T = Record<string, unknown>>(): Promise<T | null>;
+  run(): Promise<unknown>;
+}
+
+interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+}
+
+interface PagesFunctionContext<Env = unknown> {
+  env: Env;
+  request: Request;
+}
+
+type PagesFunction<Env = unknown> = (context: PagesFunctionContext<Env>) => Response | Promise<Response>;

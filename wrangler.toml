@@ -1,0 +1,11 @@
+name = "photorestore"
+compatibility_date = "2026-04-07"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "photo-db"
+database_id = "bf7ef7c3-e322-4c58-856c-b664abc1ba1e"
+
+[vars]
+APP_NAME = "photorestore"

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Upload,
   Sparkles,
@@ -24,6 +24,8 @@ import {
   AnalysisResult,
   RestoreOptions,
 } from '../hooks/useGeminiPipeline';
+import { useApiKeyStatus } from '../hooks/useApiKeyStatus';
+import { ApiKeyDialog } from '../components/ApiKeyDialog';
 
 type Step = 'none' | 'analysis' | 'model' | 'options' | 'processing';
 
@@ -82,24 +84,14 @@ export default function GroupRestore() {
 
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [restoredImage, setRestoredImage] = useState<string | null>(null);
-  const [hasApiKey, setHasApiKey] = useState(false);
   const [step, setStep] = useState<Step>('none');
   const [manualAnalysis, setManualAnalysisState] = useState<AnalysisResult>(DEFAULT_GROUP_ANALYSIS);
+  const [isApiDialogOpen, setIsApiDialogOpen] = useState(false);
 
   const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-image-preview');
   const [colorize, setColorize] = useState(false);
   const [subjectCountInput, setSubjectCountInput] = useState(String(DEFAULT_GROUP_ANALYSIS.subject_count));
-
-  useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio?.hasSelectedApiKey) {
-        setHasApiKey(await window.aistudio.hasSelectedApiKey());
-      } else {
-        setHasApiKey(true);
-      }
-    };
-    checkKey();
-  }, []);
+  const { hasApiKey, refresh } = useApiKeyStatus();
 
   const syncAnalysis = (next: AnalysisResult) => {
     setManualAnalysisState(next);
@@ -117,13 +109,6 @@ export default function GroupRestore() {
         ? manualAnalysis.damage_types.filter((item) => item !== damageType)
         : [...manualAnalysis.damage_types, damageType],
     });
-  };
-
-  const handleSelectKey = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
-      setHasApiKey(true);
-    }
   };
 
   const handleFile = (file: File) => {
@@ -276,7 +261,7 @@ export default function GroupRestore() {
           <div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20"><Users className="h-4 w-4 text-white" /></div><div><h1 className="text-sm font-bold tracking-tight md:text-base">QUANGTHOAI RESTORE</h1><p className="text-[9px] uppercase tracking-widest text-white/30">Phục hồi Ảnh Cảnh Có Người</p></div></div>
         </div>
 
-        <button onClick={handleSelectKey} className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${hasApiKey ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'animate-pulse border-amber-500/20 bg-amber-500/10 text-amber-400'}`}>
+        <button onClick={() => setIsApiDialogOpen(true)} className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${hasApiKey ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'animate-pulse border-amber-500/20 bg-amber-500/10 text-amber-400'}`}>
           {hasApiKey ? <ShieldCheck className="h-3.5 w-3.5" /> : <Key className="h-3.5 w-3.5" />}
           <span className="hidden sm:inline">{hasApiKey ? 'API Connected' : 'Chọn API Key'}</span>
         </button>
@@ -367,6 +352,12 @@ export default function GroupRestore() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed bottom-6 left-1/2 z-50 flex max-w-md -translate-x-1/2 items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 backdrop-blur-xl"><AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" /><p className="text-sm text-red-200/80">{error}</p></motion.div>
         )}
       </AnimatePresence>
+      <ApiKeyDialog
+        isOpen={isApiDialogOpen}
+        hasApiKey={hasApiKey}
+        onClose={() => setIsApiDialogOpen(false)}
+        onSaved={refresh}
+      />
     </div>
   );
 }

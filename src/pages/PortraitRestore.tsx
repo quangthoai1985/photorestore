@@ -24,6 +24,8 @@ import {
   AnalysisResult,
   RestoreOptions,
 } from '../hooks/useGeminiPipeline';
+import { useApiKeyStatus } from '../hooks/useApiKeyStatus';
+import { ApiKeyDialog } from '../components/ApiKeyDialog';
 
 type Step = 'none' | 'analysis' | 'model' | 'options' | 'processing';
 
@@ -87,26 +89,16 @@ export default function PortraitRestore() {
 
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [restoredImage, setRestoredImage] = useState<string | null>(null);
-  const [hasApiKey, setHasApiKey] = useState(false);
   const [step, setStep] = useState<Step>('none');
   const [manualAnalysis, setManualAnalysisState] = useState<AnalysisResult>(DEFAULT_PORTRAIT_ANALYSIS);
+  const [isApiDialogOpen, setIsApiDialogOpen] = useState(false);
 
   const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3.1-flash-image-preview');
   const [colorize, setColorize] = useState(false);
   const [replaceClothing, setReplaceClothing] = useState(false);
   const [clothingOption, setClothingOption] = useState('Vest Nam (Truyền thống)');
   const [clothingText, setClothingText] = useState('');
-
-  useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio?.hasSelectedApiKey) {
-        setHasApiKey(await window.aistudio.hasSelectedApiKey());
-      } else {
-        setHasApiKey(true);
-      }
-    };
-    checkKey();
-  }, []);
+  const { hasApiKey, refresh } = useApiKeyStatus();
 
   const syncAnalysis = (next: AnalysisResult) => {
     setManualAnalysisState(next);
@@ -124,13 +116,6 @@ export default function PortraitRestore() {
         ? manualAnalysis.damage_types.filter((item) => item !== damageType)
         : [...manualAnalysis.damage_types, damageType],
     });
-  };
-
-  const handleSelectKey = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
-      setHasApiKey(true);
-    }
   };
 
   const handleFile = (file: File) => {
@@ -288,7 +273,7 @@ export default function PortraitRestore() {
         </div>
 
         <button
-          onClick={handleSelectKey}
+          onClick={() => setIsApiDialogOpen(true)}
           className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${hasApiKey ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'animate-pulse border-amber-500/20 bg-amber-500/10 text-amber-400'}`}
         >
           {hasApiKey ? <ShieldCheck className="h-3.5 w-3.5" /> : <Key className="h-3.5 w-3.5" />}
@@ -464,6 +449,12 @@ export default function PortraitRestore() {
           </motion.div>
         )}
       </AnimatePresence>
+      <ApiKeyDialog
+        isOpen={isApiDialogOpen}
+        hasApiKey={hasApiKey}
+        onClose={() => setIsApiDialogOpen(false)}
+        onSaved={refresh}
+      />
     </div>
   );
 }
