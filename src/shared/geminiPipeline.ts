@@ -114,6 +114,54 @@ export function supportsImageInputError(err: unknown): boolean {
   return /does not support image input|Cannot read\s+"image\.[^"]+"/i.test(message);
 }
 
+function extractGeminiApiMessage(rawMessage: string): string {
+  const trimmed = rawMessage.trim();
+
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as { error?: { message?: string } };
+      const nestedMessage = parsed?.error?.message;
+      if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+        return nestedMessage.trim();
+      }
+    } catch {
+      // ignore JSON parse errors and use raw text
+    }
+  }
+
+  const match = rawMessage.match(/"message"\s*:\s*"([^"]+)"/i);
+  if (match?.[1]) {
+    return match[1];
+  }
+
+  return rawMessage;
+}
+
+export function isLocationUnsupportedError(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : String(err ?? '');
+  const message = extractGeminiApiMessage(raw);
+  return /user location is not supported for the api use|failed_precondition/i.test(message);
+}
+
+export function toUserFacingPipelineError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? '');
+  const message = extractGeminiApiMessage(raw);
+
+  if (supportsImageInputError(err) || supportsImageInputError(message)) {
+    return 'Model hiện tại không hỗ trợ nhập ảnh. Hệ thống đã thử fallback, nhưng vẫn thất bại. Hãy đổi sang model khác hoặc thử lại sau.';
+  }
+
+  if (isLocationUnsupportedError(err) || isLocationUnsupportedError(message)) {
+    return 'Khu vực hiện tại chưa được Gemini API hỗ trợ cho API key này. Hãy dùng VPN/egress ở region được hỗ trợ hoặc thử API key/project khác.';
+  }
+
+  if (isTimeoutError(err)) {
+    return `${message}. Vui lòng thử lại hoặc chọn ảnh nhỏ hơn.`;
+  }
+
+  return message || 'Đã xảy ra lỗi không xác định.';
+}
+
 export function isTimeoutError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err ?? '');
   return message.startsWith('Timeout');

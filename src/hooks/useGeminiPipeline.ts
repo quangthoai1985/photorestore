@@ -2,8 +2,7 @@ import { useCallback, useState } from 'react';
 import { apiRequest } from '../lib/api';
 import {
   DEFAULT_ANALYSIS,
-  isTimeoutError,
-  supportsImageInputError,
+  toUserFacingPipelineError,
 } from '../shared/geminiPipeline';
 import type {
   AnalysisResult,
@@ -74,11 +73,7 @@ export const useGeminiPipeline = () => {
       setIsProcessing(false);
       return response.image;
     } catch (err: any) {
-      const msg = supportsImageInputError(err)
-        ? 'Model hiện tại không hỗ trợ nhập ảnh ở endpoint này. Hãy thử lại, hoặc đổi sang model ảnh khác.'
-        : isTimeoutError(err)
-        ? `${err.message}. Vui lòng thử lại hoặc chọn ảnh nhỏ hơn.`
-        : err?.message ?? 'Đã xảy ra lỗi không xác định.';
+      const msg = toUserFacingPipelineError(err);
       setError(msg);
       setIsProcessing(false);
       throw err;
@@ -113,11 +108,7 @@ export const useGeminiPipeline = () => {
       setIsProcessing(false);
       return response.image;
     } catch (err: any) {
-      const msg = supportsImageInputError(err)
-        ? 'Model hiện tại không hỗ trợ nhập ảnh ở endpoint này. Hãy thử lại, hoặc đổi sang model ảnh khác.'
-        : isTimeoutError(err)
-        ? `${err.message}. Vui lòng thử lại hoặc chọn ảnh nhỏ hơn.`
-        : err?.message ?? 'Đã xảy ra lỗi không xác định.';
+      const msg = toUserFacingPipelineError(err);
       setError(msg);
       setIsProcessing(false);
       throw err;

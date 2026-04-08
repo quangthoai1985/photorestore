@@ -4,9 +4,9 @@
 
 # Quangthoai Restore
 
-Frontend Vite/React + Cloudflare Pages Functions + Cloudflare D1.
+Frontend Vite/React + Cloudflare Pages Functions + Cloudflare D1 + Google Cloud Run.
 
-App khong con goi Gemini truc tiep tu frontend. Gemini API key duoc luu theo guest session, ma hoa o backend, va chi duoc dung trong Cloudflare Functions.
+App khong con goi Gemini truc tiep tu frontend. Gemini API key duoc luu theo guest session, ma hoa o backend tren Cloudflare, sau do Cloudflare proxy request sang Cloud Run de goi Gemini tu ha tang Google.
 
 ## Local Frontend
 
@@ -25,6 +25,20 @@ Luu y:
 - Frontend local chi phuc vu UI.
 - Cac endpoint `/api/*` se can Cloudflare Pages Functions de hoat dong dung.
 
+## Kien truc hien tai
+
+- Frontend UI: Cloudflare Pages
+- Session cookie + luu API key ma hoa + D1: Cloudflare Pages Functions
+- Gemini image processing: Google Cloud Run (`cloud-run/`)
+
+Luong xu ly:
+
+1. Frontend goi `/api/process/*` tren Cloudflare
+2. Cloudflare doc session cookie, lay API key da ma hoa trong D1, giai ma bang `MASTER_SECRET`
+3. Cloudflare forward request sang Cloud Run bang `PROCESSOR_SHARED_SECRET`
+4. Cloud Run goi Gemini API va tra ket qua ve Cloudflare
+5. Cloudflare tra ket qua lai cho frontend
+
 ## Cloudflare Setup
 
 Ban can thao tac tren Cloudflare cho cac buoc sau:
@@ -32,8 +46,9 @@ Ban can thao tac tren Cloudflare cho cac buoc sau:
 1. Tao D1 database ten `photo-db`
 2. Lay `database_id` va thay vao `wrangler.toml`
 3. Dat secret `MASTER_SECRET` tren Cloudflare
-4. Chay migration `schema.sql` len D1
-5. Deploy Pages project co Functions
+4. Dat `GEMINI_PROCESSOR_URL` va `PROCESSOR_SHARED_SECRET` tren Cloudflare
+5. Chay migration `schema.sql` len D1
+6. Deploy Pages project co Functions
 
 ### 1. Tao D1 Database
 
@@ -62,6 +77,62 @@ Bang CLI:
 
 `wrangler secret put MASTER_SECRET`
 
+Dat them URL Cloud Run va shared secret cho proxy:
+
+- `wrangler secret put GEMINI_PROCESSOR_URL`
+- `wrangler secret put PROCESSOR_SHARED_SECRET`
+
+`PROCESSOR_SHARED_SECRET` nen la mot chuoi ngau nhien moi, khac `MASTER_SECRET`.
+
+## Google Cloud Run Setup
+
+Service Cloud Run nam trong thu muc `cloud-run/`.
+
+### 1. Chuan bi
+
+Ban can:
+
+- Tai khoan Google Cloud
+- Bat Cloud Run API
+- Cai `gcloud` CLI va dang nhap
+
+### 2. Chon project va region
+
+Vi du:
+
+`gcloud config set project YOUR_PROJECT_ID`
+
+Nen chon region Gemini/GCP ho tro on dinh cho API key cua ban, vi du `asia-southeast1` hoac region khac ban da xac minh dung duoc.
+
+### 3. Deploy Cloud Run
+
+Tu thu muc goc du an:
+
+`gcloud run deploy photorestore-gemini-processor --source cloud-run --region asia-southeast1 --allow-unauthenticated --set-env-vars PROCESSOR_SHARED_SECRET=YOUR_SHARED_SECRET`
+
+Sau khi deploy xong, Cloud Run se tra ve mot URL dang:
+
+`https://photorestore-gemini-processor-xxxxx-uc.a.run.app`
+
+Gan URL nay vao secret `GEMINI_PROCESSOR_URL` tren Cloudflare.
+
+### 4. Kiem tra health
+
+Cloud Run:
+
+`GET <CLOUD_RUN_URL>/health`
+
+Cloudflare:
+
+`GET /api/health`
+
+Ban nen thay:
+
+- `masterSecretConfigured: true`
+- `processorConfigured: true`
+- `database.ok: true`
+- `processor.ok: true`
+
 ### 4. Preview Functions Local
 
 Sau khi build frontend:
@@ -77,6 +148,12 @@ Sau khi build frontend:
 - `DELETE /api/user-settings/api-key`
 - `POST /api/process/restore`
 - `POST /api/process/id-photo`
+
+Cloud Run internal processor:
+
+- `GET /health`
+- `POST /process/restore`
+- `POST /process/id-photo`
 
 ## Guest Session
 
@@ -94,7 +171,7 @@ Da hoan thanh:
 - D1 schema cho `user_settings` va `usage_logs`
 - Guest session bang cookie/UUID
 - API luu/xoa/kiem tra Gemini API key da ma hoa
-- Chuyen xu ly Gemini sang backend Functions
+- Chuyen xu ly Gemini sang backend Cloud Run thong qua Cloudflare proxy
 
 Chua lam trong pha nay:
 

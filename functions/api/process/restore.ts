@@ -1,6 +1,6 @@
 import { decryptApiKey } from '../../_lib/crypto';
 import type { Env } from '../../_lib/env';
-import { processRestoreImage } from '../../_lib/gemini';
+import { callGeminiProcessor } from '../../_lib/processor';
 import { jsonWithSession } from '../../_lib/response';
 import { getOrCreateGuestSession } from '../../_lib/session';
 import type { AnalysisResult, RestoreOptions } from '../../../src/shared/types';
@@ -34,7 +34,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
     }
 
     const apiKey = await decryptApiKey(userSettings.gemini_api_key_enc, userSettings.iv, env.MASTER_SECRET);
-    const result = await processRestoreImage(apiKey, body.imageDataUri, body.analysis, body.options);
+    const result = await callGeminiProcessor(env, '/process/restore', {
+      apiKey,
+      imageDataUri: body.imageDataUri,
+      analysis: body.analysis,
+      options: body.options,
+    });
 
     await env.DB
       .prepare(

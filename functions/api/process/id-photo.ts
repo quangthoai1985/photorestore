@@ -1,6 +1,6 @@
 import { decryptApiKey } from '../../_lib/crypto';
 import type { Env } from '../../_lib/env';
-import { processIdPhoto } from '../../_lib/gemini';
+import { callGeminiProcessor } from '../../_lib/processor';
 import { jsonWithSession } from '../../_lib/response';
 import { getOrCreateGuestSession } from '../../_lib/session';
 import type { IdPhotoOptions } from '../../../src/shared/types';
@@ -33,7 +33,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
     }
 
     const apiKey = await decryptApiKey(userSettings.gemini_api_key_enc, userSettings.iv, env.MASTER_SECRET);
-    const result = await processIdPhoto(apiKey, body.imageDataUri, body.options);
+    const result = await callGeminiProcessor(env, '/process/id-photo', {
+      apiKey,
+      imageDataUri: body.imageDataUri,
+      options: body.options,
+    });
 
     await env.DB
       .prepare(
