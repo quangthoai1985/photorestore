@@ -19,31 +19,47 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
     return new Response('Thiếu dữ liệu xử lý ảnh.', { status: 400 });
   }
 
-  const userSettings = await env.DB
-    .prepare('SELECT gemini_api_key_enc, iv FROM user_settings WHERE user_id = ?')
-    .bind(userId)
-    .first<{ gemini_api_key_enc: string; iv: string }>();
-
-  if (!userSettings) {
-    return new Response('Bạn chưa cấu hình Gemini API key cho session này.', { status: 400 });
+  if (!env.MASTER_SECRET) {
+    return new Response('MASTER_SECRET is not configured.', { status: 500 });
   }
 
-  const apiKey = await decryptApiKey(userSettings.gemini_api_key_enc, userSettings.iv, env.MASTER_SECRET);
-  const result = await processRestoreImage(apiKey, body.imageDataUri, body.analysis, body.options);
+  try {
+    const userSettings = await env.DB
+      .prepare('SELECT gemini_api_key_enc, iv FROM user_settings WHERE user_id = ?')
+      .bind(userId)
+      .first<{ gemini_api_key_enc: string; iv: string }>();
 
-  await env.DB
-    .prepare(
-      'INSERT INTO usage_logs (user_id, task_type, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?, ?)',
-    )
-    .bind(userId, 'restore', result.usage.inputTokens, result.usage.outputTokens, result.usage.costUsd)
-    .run();
+    if (!userSettings) {
+      return new Response('Bạn chưa cấu hình Gemini API key cho session này.', { status: 400 });
+    }
 
-  return jsonWithSession(
-    {
-      image: result.image,
-      usage: result.usage,
-    },
-    userId,
-    setCookie,
-  );
+    const apiKey = await decryptApiKey(userSettings.gemini_api_key_enc, userSettings.iv, env.MASTER_SECRET);
+    const result = await processRestoreImage(apiKey, body.imageDataUri, body.analysis, body.options);
+
+    await env.DB
+      .prepare(
+        'INSERT INTO usage_logs (user_id, task_type, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?, ?)',
+      )
+      .bind(userId, 'restore', result.usage.inputTokens, result.usage.outputTokens, result.usage.costUsd)
+      .run();
+
+    return jsonWithSession(
+      {
+        image: result.image,
+        usage: result.usage,
+      },
+      userId,
+      setCookie,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Đã xảy ra lỗi khi phục hồi ảnh.';
+    const isDecryptError = /decrypt|AES-GCM|operation-specific reason/i.test(message);
+
+    return new Response(
+      isDecryptError
+        ? 'Không thể giải mã Gemini API key đã lưu. Có thể MASTER_SECRET đã thay đổi sau khi chuyển hệ thống. Hãy lưu lại API key một lần nữa.'
+        : message,
+      { status: 500 },
+    );
+  }
 };

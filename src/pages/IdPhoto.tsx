@@ -31,6 +31,7 @@ import {
 } from '../hooks/useGeminiPipeline';
 import { useApiKeyStatus } from '../hooks/useApiKeyStatus';
 import { ApiKeyDialog } from '../components/ApiKeyDialog';
+import { shouldPromptApiKeyReset } from '../lib/api';
 
 type Step = 'none' | 'format' | 'subject' | 'style' | 'processing';
 
@@ -330,7 +331,11 @@ export default function IdPhoto() {
       });
       setResultImage(result);
       setStep('style');
-    } catch {
+    } catch (err) {
+      if (shouldPromptApiKeyReset(err)) {
+        setIsApiDialogOpen(true);
+        void refresh();
+      }
       setStep('style');
     }
   };

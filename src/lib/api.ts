@@ -1,3 +1,5 @@
+const API_KEY_REENTRY_ERROR = 'Không thể giải mã Gemini API key đã lưu';
+
 export async function apiRequest<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
     credentials: 'include',
@@ -14,4 +16,8 @@ export async function apiRequest<T>(input: RequestInfo | URL, init?: RequestInit
   }
 
   return response.json() as Promise<T>;
+}
+
+export function shouldPromptApiKeyReset(error: unknown): boolean {
+  return error instanceof Error && error.message.includes(API_KEY_REENTRY_ERROR);
 }

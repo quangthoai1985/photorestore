@@ -26,6 +26,7 @@ import {
 } from '../hooks/useGeminiPipeline';
 import { useApiKeyStatus } from '../hooks/useApiKeyStatus';
 import { ApiKeyDialog } from '../components/ApiKeyDialog';
+import { shouldPromptApiKeyReset } from '../lib/api';
 
 type Step = 'none' | 'analysis' | 'model' | 'options' | 'processing';
 
@@ -170,7 +171,11 @@ export default function PortraitRestore() {
       const result = await restoreImage(originalImage, analysis, options);
       setRestoredImage(result);
       setStep('options');
-    } catch {
+    } catch (err) {
+      if (shouldPromptApiKeyReset(err)) {
+        setIsApiDialogOpen(true);
+        void refresh();
+      }
       setStep('options');
     }
   };
