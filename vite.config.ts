@@ -13,6 +13,13 @@ export default defineConfig(() => {
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
+      proxy: {
+        '/api': {
+          target: 'https://photorestore.pages.dev',
+          changeOrigin: true,
+          secure: true,
+        },
+      },
     },
   };
 });

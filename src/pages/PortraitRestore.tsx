@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   Upload,
   Sparkles,
@@ -303,7 +303,7 @@ export default function PortraitRestore() {
             <motion.div key="workspace" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full p-4 pb-24 pt-20 md:p-8 md:pb-10 md:pt-24 lg:h-full">
               <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 lg:h-full lg:flex-row">
                 {/* Image preview panel - FIX: dùng h-[350px] cố định trên mobile, lg:h-full cho desktop */}
-                <div className="relative h-[350px] flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/40 lg:h-full lg:min-h-0">
+                <div className="relative h-[350px] overflow-hidden rounded-2xl border border-white/10 bg-black/40 lg:flex-1 lg:h-full lg:min-h-0">
                   {restoredImage ? (
                     <div className="absolute inset-0">
                       <ImageSlider before={originalImage} after={restoredImage} beforeLabel="GOC" afterLabel="PHUC HOI" />
