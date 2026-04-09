@@ -18,8 +18,8 @@ const cards = [
   {
     to: '/portrait-restore',
     icon: User,
-    title: 'Phuc hoi Anh Chan Dung & Anh Tho',
-    desc: 'Khoi phuc guong mat, va xoa vet xuoc, len mau AI va nang cap chi tiet cho anh chan dung cu va anh tho gia dinh.',
+    title: 'Phục hồi Ảnh Chân Dung & Ảnh Thờ',
+    desc: 'Khôi phục gương mặt, vá xóa vết xước, lên màu AI và nâng cấp chi tiết cho ảnh chân dung cũ và ảnh thờ gia đình.',
     badge: 'Portrait',
     bgImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=1400&auto=format&fit=crop',
     tone: {
@@ -36,8 +36,8 @@ const cards = [
   {
     to: '/group-restore',
     icon: Users,
-    title: 'Phuc hoi Anh Tap The & Gia Dinh',
-    desc: 'Tai tao bo cuc tong the, giu tu nhien tung khuon mat va lam sach cac buc anh gia dinh, anh cuoi, anh ky niem nhieu nguoi.',
+    title: 'Phục hồi Ảnh Tập Thể & Gia Đình',
+    desc: 'Tái tạo bố cục tổng thể, giữ tự nhiên từng khuôn mặt và làm sạch các bức ảnh gia đình, ảnh cưới, ảnh kỷ niệm nhiều người.',
     badge: 'Family',
     bgImage: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=1400&auto=format&fit=crop',
     tone: {
@@ -54,8 +54,8 @@ const cards = [
   {
     to: '/id-photo',
     icon: ScanFace,
-    title: 'Chinh sua Anh The (ID Photo)',
-    desc: 'Can chinh anh the sach se, dung bo cuc, nen studio chuan ho so va toi uu trang phuc, huong nhin, bieu cam.',
+    title: 'Chỉnh sửa Ảnh Thẻ (ID Photo)',
+    desc: 'Căn chỉnh ảnh thẻ sạch sẽ, đúng bố cục, nền studio chuẩn hồ sơ và tối ưu trang phục, hướng nhìn, biểu cảm.',
     badge: 'ID Photo',
     bgImage: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?q=80&w=1400&auto=format&fit=crop',
     tone: {
@@ -96,7 +96,7 @@ export default function Portal() {
             AI Photo Restoration Workspace
           </p>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-white/50 md:text-base">
-            Chon khong gian lam viec phu hop cho tung loai anh. Moi card duoc thiet ke nhu mot lo trinh rieng, ro the loai ngay tu cai nhin dau tien.
+            Chọn không gian làm việc phù hợp cho từng loại ảnh. Mỗi card được thiết kế như một lộ trình riêng, rõ thể loại ngay từ cái nhìn đầu tiên.
           </p>
         </motion.div>
 
@@ -155,14 +155,14 @@ export default function Portal() {
                           <div>
                             <p className="text-[10px] uppercase tracking-[0.28em] text-white/35">Workspace</p>
                             <p className={`mt-2 text-sm font-medium text-white/75 transition-colors duration-500 ${card.tone.hoverText}`}>
-                              Chon luong xu ly phu hop
+                              Chọn luồng xử lý phù hợp
                             </p>
                           </div>
 
                           <div
                             className={`inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/85 backdrop-blur-md transition-all duration-500 ${card.tone.buttonClass}`}
                           >
-                            Mo ngay
+                            Mở ngay
                             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                           </div>
                         </div>
