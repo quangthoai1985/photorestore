@@ -1,175 +1,189 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { User, Users, Sparkles, ChevronRight, ScanFace, ArrowRight } from 'lucide-react';
+import { ArrowRight, ScanFace, Sparkles, User, Users } from 'lucide-react';
+
+type CardTone = {
+  accentText: string;
+  badgeClass: string;
+  iconClass: string;
+  borderGlow: string;
+  buttonClass: string;
+  imageGlow: string;
+  hoverText: string;
+  spotlight: string;
+};
 
 const cards = [
   {
     to: '/portrait-restore',
     icon: User,
-    title: 'Phục hồi Ảnh Chân Dung & Ảnh Thờ',
-    desc: 'Phục hồi khuôn mặt, khử xước, lên màu AI, thay trang phục — xuất ảnh lên đến 4K bằng Gemini Native.',
-    color: 'blue',
-    bgImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1200&auto=format&fit=crop',
+    title: 'Phuc hoi Anh Chan Dung & Anh Tho',
+    desc: 'Khoi phuc guong mat, va xoa vet xuoc, len mau AI va nang cap chi tiet cho anh chan dung cu va anh tho gia dinh.',
     badge: 'Portrait',
+    bgImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=1400&auto=format&fit=crop',
+    tone: {
+      accentText: 'text-sky-200',
+      badgeClass: 'border-sky-300/35 bg-sky-400/10 text-sky-100',
+      iconClass: 'border-sky-300/30 bg-sky-300/12 text-sky-100 shadow-[0_0_40px_rgba(56,189,248,0.18)]',
+      borderGlow: 'group-hover:border-sky-300/45 group-hover:shadow-[0_30px_90px_rgba(14,165,233,0.18)]',
+      buttonClass: 'group-hover:border-sky-300/60 group-hover:bg-sky-300 group-hover:text-slate-950',
+      imageGlow: 'from-sky-300/35 via-cyan-300/18 to-transparent',
+      hoverText: 'group-hover:text-sky-100',
+      spotlight: 'bg-[radial-gradient(circle_at_top_left,rgba(125,211,252,0.28),transparent_45%)]',
+    } satisfies CardTone,
   },
   {
     to: '/group-restore',
     icon: Users,
-    title: 'Phục hồi Ảnh Tập Thể & Gia Đình',
-    desc: 'Phân tích AI tự động đếm khuôn mặt, phục hồi toàn cảnh, khử xước và lên màu ảnh lịch sử bằng Gemini Native.',
-    color: 'purple',
-    badge: 'Group',
-    bgImage: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=1200&auto=format&fit=crop',
+    title: 'Phuc hoi Anh Tap The & Gia Dinh',
+    desc: 'Tai tao bo cuc tong the, giu tu nhien tung khuon mat va lam sach cac buc anh gia dinh, anh cuoi, anh ky niem nhieu nguoi.',
+    badge: 'Family',
+    bgImage: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=1400&auto=format&fit=crop',
+    tone: {
+      accentText: 'text-amber-100',
+      badgeClass: 'border-amber-200/35 bg-amber-300/10 text-amber-50',
+      iconClass: 'border-amber-200/30 bg-amber-200/10 text-amber-50 shadow-[0_0_40px_rgba(251,191,36,0.16)]',
+      borderGlow: 'group-hover:border-amber-200/45 group-hover:shadow-[0_30px_90px_rgba(245,158,11,0.18)]',
+      buttonClass: 'group-hover:border-amber-200/60 group-hover:bg-amber-200 group-hover:text-stone-950',
+      imageGlow: 'from-amber-200/35 via-orange-300/16 to-transparent',
+      hoverText: 'group-hover:text-amber-50',
+      spotlight: 'bg-[radial-gradient(circle_at_top_left,rgba(253,230,138,0.22),transparent_45%)]',
+    } satisfies CardTone,
   },
   {
     to: '/id-photo',
     icon: ScanFace,
-    title: 'Chỉnh sửa Ảnh Thẻ (ID Photo)',
-    desc: 'Chuẩn hóa ảnh hồ sơ với nền trơn, bố cục ảnh thẻ, chỉnh nhẹ hướng nhìn, biểu cảm và thay trang phục formal.',
-    color: 'fuchsia',
+    title: 'Chinh sua Anh The (ID Photo)',
+    desc: 'Can chinh anh the sach se, dung bo cuc, nen studio chuan ho so va toi uu trang phuc, huong nhin, bieu cam.',
     badge: 'ID Photo',
-    bgImage: 'https://images.unsplash.com/photo-1531746020768-018614088e78?q=80&w=1200&auto=format&fit=crop',
+    bgImage: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?q=80&w=1400&auto=format&fit=crop',
+    tone: {
+      accentText: 'text-rose-100',
+      badgeClass: 'border-rose-200/35 bg-rose-300/10 text-rose-50',
+      iconClass: 'border-rose-200/30 bg-rose-200/10 text-rose-50 shadow-[0_0_40px_rgba(251,113,133,0.16)]',
+      borderGlow: 'group-hover:border-rose-200/45 group-hover:shadow-[0_30px_90px_rgba(244,63,94,0.18)]',
+      buttonClass: 'group-hover:border-rose-200/60 group-hover:bg-rose-200 group-hover:text-rose-950',
+      imageGlow: 'from-rose-200/35 via-pink-300/16 to-transparent',
+      hoverText: 'group-hover:text-rose-50',
+      spotlight: 'bg-[radial-gradient(circle_at_top_left,rgba(254,205,211,0.24),transparent_45%)]',
+    } satisfies CardTone,
   },
-];
-
-const colorMap: Record<string, { bg: string; border: string; shadow: string; text: string; iconBg: string; iconBorder: string; iconText: string; btnHover: string; glow: string; ring: string }> = {
-  blue: {
-    bg: 'bg-blue-500/20',
-    border: 'border-blue-500/50',
-    shadow: 'shadow-blue-500/25',
-    text: 'text-blue-400',
-    iconBg: 'bg-blue-500/20',
-    iconBorder: 'border-blue-500/30',
-    iconText: 'text-blue-400',
-    btnHover: 'bg-blue-500 border-blue-500',
-    glow: 'from-blue-500/30 via-blue-600/20 to-transparent',
-    ring: 'ring-blue-400/20',
-  },
-  purple: {
-    bg: 'bg-purple-500/20',
-    border: 'border-purple-500/50',
-    shadow: 'shadow-purple-500/25',
-    text: 'text-purple-400',
-    iconBg: 'bg-purple-500/20',
-    iconBorder: 'border-purple-500/30',
-    iconText: 'text-purple-400',
-    btnHover: 'bg-purple-600 border-purple-600',
-    glow: 'from-purple-500/30 via-purple-600/20 to-transparent',
-    ring: 'ring-purple-400/20',
-  },
-  fuchsia: {
-    bg: 'bg-fuchsia-500/20',
-    border: 'border-fuchsia-500/50',
-    shadow: 'shadow-fuchsia-500/25',
-    text: 'text-fuchsia-400',
-    iconBg: 'bg-fuchsia-500/20',
-    iconBorder: 'border-fuchsia-500/30',
-    iconText: 'text-fuchsia-400',
-    btnHover: 'bg-fuchsia-600 border-fuchsia-600',
-    glow: 'from-fuchsia-500/30 via-fuchsia-600/20 to-transparent',
-    ring: 'ring-fuchsia-400/20',
-  },
-};
+] as const;
 
 export default function Portal() {
   return (
-    <div className="h-auto min-h-screen w-full bg-gray-950 text-white flex flex-col items-center py-12 px-4 overflow-x-hidden relative selection:bg-blue-500/30">
-      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/10 blur-[120px] rounded-full pointer-events-none" />
-      <div className="fixed top-[40%] left-[50%] w-[30%] h-[30%] bg-fuchsia-600/5 blur-[100px] rounded-full pointer-events-none" />
+    <div className="relative flex min-h-screen w-full overflow-x-hidden bg-[#050816] px-4 py-12 text-white selection:bg-sky-400/30">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_30%),radial-gradient(circle_at_85%_18%,rgba(251,191,36,0.1),transparent_24%),radial-gradient(circle_at_50%_100%,rgba(244,63,94,0.08),transparent_28%)]" />
+      <div className="pointer-events-none fixed inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:72px_72px]" />
 
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-12 md:mb-20 z-10 mt-8 md:mt-16"
-      >
-        <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-4 mb-4">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/20">
-            <Sparkles className="w-6 h-6 md:w-7 md:h-7 text-white" />
+      <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-12 mt-8 text-center md:mb-20 md:mt-16"
+        >
+          <div className="mb-5 flex flex-col items-center justify-center gap-3 md:flex-row md:gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/8 shadow-[0_20px_50px_rgba(56,189,248,0.18)] backdrop-blur-xl md:h-14 md:w-14">
+              <Sparkles className="h-6 w-6 text-white md:h-7 md:w-7" />
+            </div>
+            <h1 className="bg-gradient-to-r from-white via-white to-white/45 bg-clip-text text-3xl font-black tracking-[-0.06em] text-transparent md:text-6xl">
+              QUANGTHOAI RESTORE
+            </h1>
           </div>
-          <h1 className="text-2xl md:text-5xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/40">
-            QUANGTHOAI RESTORE
-          </h1>
-        </div>
-        <p className="text-[10px] md:text-lg font-medium text-white/40 tracking-[0.2em] uppercase px-4">
-          AI Photo Restoration Workspace
-        </p>
-        <div className="mt-4 flex items-center justify-center gap-2">
-          <div className="h-px w-12 bg-gradient-to-r from-transparent to-white/20" />
-          <span className="text-[9px] md:text-xs text-white/25 tracking-widest uppercase">Choose your workspace</span>
-          <div className="h-px w-12 bg-gradient-to-l from-transparent to-white/20" />
-        </div>
-      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8 w-full max-w-7xl z-10 mb-20">
-        {cards.map((card, i) => {
-          const c = colorMap[card.color];
-          const Icon = card.icon;
-          return (
-            <motion.div
-              key={card.to}
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.12, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-            >
-              <Link to={card.to} className="group block h-full">
-                <div className={`h-full bg-gray-900/80 border border-white/[0.08] rounded-2xl md:rounded-3xl flex flex-col transition-all duration-700 hover:scale-[1.03] hover:${c.border} hover:shadow-2xl hover:${c.shadow} relative overflow-hidden backdrop-blur-sm`}>
-                  <div className="absolute inset-0 z-0">
-                    <img
-                      src={card.bgImage}
-                      alt={card.badge}
-                      className="w-full h-full object-cover opacity-[0.15] group-hover:opacity-50 transition-all duration-700 scale-105 group-hover:scale-110"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className={`absolute inset-0 bg-gradient-to-t ${c.glow} opacity-0 group-hover:opacity-100 transition-opacity duration-700`} />
-                    <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/90 to-gray-950/40 group-hover:from-gray-950/90 group-hover:via-gray-950/60 group-hover:to-transparent transition-all duration-700" />
-                  </div>
+          <p className="px-4 text-[11px] font-medium uppercase tracking-[0.34em] text-white/45 md:text-sm">
+            AI Photo Restoration Workspace
+          </p>
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-white/50 md:text-base">
+            Chon khong gian lam viec phu hop cho tung loai anh. Moi card duoc thiet ke nhu mot lo trinh rieng, ro the loai ngay tu cai nhin dau tien.
+          </p>
+        </motion.div>
 
-                  <div className="absolute top-4 right-4 md:top-6 md:right-6 z-10">
-                    <span className={`text-[9px] md:text-[10px] font-bold tracking-[0.15em] uppercase px-2.5 py-1 rounded-full border backdrop-blur-md transition-all duration-500 ${c.text} ${c.iconBorder} ${c.bg} group-hover:bg-white/10`}>
-                      {card.badge}
-                    </span>
-                  </div>
+        <div className="mb-20 grid w-full grid-cols-1 gap-6 md:gap-8 xl:grid-cols-3">
+          {cards.map((card, index) => {
+            const Icon = card.icon;
 
-                  <div className="relative z-10 p-6 md:p-10 flex flex-col gap-4 md:gap-6 flex-1">
-                    <div className={`w-12 h-12 md:w-14 md:h-14 ${c.iconBg} backdrop-blur-md rounded-xl md:rounded-2xl flex items-center justify-center border ${c.iconBorder} group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
-                      <Icon className={`w-6 h-6 md:w-7 md:h-7 ${c.iconText} transition-transform duration-500`} />
+            return (
+              <motion.div
+                key={card.to}
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.12 + index * 0.1, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Link to={card.to} className="group block h-full">
+                  <article
+                    className={`relative flex h-full min-h-[430px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-1 backdrop-blur-xl transition-all duration-700 will-change-transform hover:-translate-y-2 ${card.tone.borderGlow}`}
+                  >
+                    <div className="absolute inset-0 opacity-70 transition-opacity duration-700 group-hover:opacity-100">
+                      <img
+                        src={card.bgImage}
+                        alt={card.badge}
+                        className="h-full w-full scale-105 object-cover opacity-20 saturate-[0.85] transition-all duration-700 group-hover:scale-110 group-hover:opacity-70 group-hover:saturate-100"
+                        referrerPolicy="no-referrer"
+                      />
                     </div>
 
-                    <div className="space-y-2 md:space-y-3">
-                      <h2 className={`text-xl md:text-2xl font-bold tracking-tight text-white group-hover:${c.text} transition-colors duration-500`}>
-                        {card.title}
-                      </h2>
-                      <p className="text-white/50 leading-relaxed text-sm md:text-base group-hover:text-white/70 transition-colors duration-500">
-                        {card.desc}
-                      </p>
-                    </div>
+                    <div className={`absolute inset-0 opacity-70 transition-opacity duration-700 group-hover:opacity-100 ${card.tone.spotlight}`} />
+                    <div className={`absolute inset-0 bg-gradient-to-br ${card.tone.imageGlow} opacity-50 blur-2xl transition-opacity duration-700 group-hover:opacity-90`} />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,22,0.18)_0%,rgba(5,8,22,0.58)_28%,rgba(5,8,22,0.92)_70%,rgba(5,8,22,0.98)_100%)] transition-all duration-700 group-hover:bg-[linear-gradient(180deg,rgba(5,8,22,0.08)_0%,rgba(5,8,22,0.42)_28%,rgba(5,8,22,0.8)_68%,rgba(5,8,22,0.96)_100%)]" />
 
-                    <div className="mt-auto pt-4 md:pt-6">
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-white/[0.06] backdrop-blur-md border border-white/10 text-white/80 rounded-full text-xs md:text-sm font-bold group-hover:${c.btnHover} group-hover:text-white transition-all duration-500`}>
-                        Mở Workspace
-                        <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform duration-300" />
+                    <div className="relative flex h-full flex-col rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-6 md:p-8">
+                      <div className="mb-10 flex items-start justify-between gap-4">
+                        <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border backdrop-blur-md transition-all duration-500 group-hover:scale-110 group-hover:-rotate-3 ${card.tone.iconClass}`}>
+                          <Icon className="h-7 w-7" />
+                        </div>
+
+                        <span className={`rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] backdrop-blur-md transition-all duration-500 group-hover:bg-white/12 ${card.tone.badgeClass}`}>
+                          {card.badge}
+                        </span>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h2 className={`max-w-[12ch] text-3xl font-semibold tracking-[-0.04em] text-white transition-colors duration-500 md:text-[2rem] ${card.tone.hoverText}`}>
+                          {card.title}
+                        </h2>
+                        <p className="max-w-md text-sm leading-7 text-white/62 transition-colors duration-500 group-hover:text-white/84 md:text-[15px]">
+                          {card.desc}
+                        </p>
+                      </div>
+
+                      <div className="mt-auto pt-10">
+                        <div className="mb-5 h-px w-full bg-gradient-to-r from-white/20 via-white/8 to-transparent" />
+
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.28em] text-white/35">Workspace</p>
+                            <p className={`mt-2 text-sm font-medium text-white/75 transition-colors duration-500 ${card.tone.hoverText}`}>
+                              Chon luong xu ly phu hop
+                            </p>
+                          </div>
+
+                          <div
+                            className={`inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/85 backdrop-blur-md transition-all duration-500 ${card.tone.buttonClass}`}
+                          >
+                            Mo ngay
+                            <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </article>
+                </Link>
+              </motion.div>
+            );
+          })}
+        </div>
 
-                  <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${c.bg.replace('/20', '')} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-                </div>
-              </Link>
-            </motion.div>
-          );
-        })}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          className="mt-auto pb-8 text-center text-[9px] uppercase tracking-[0.35em] text-white/20 md:text-[10px]"
+        >
+          © 2026 QUANGTHOAI RESTORE • Powered by Google Gemini AI
+        </motion.p>
       </div>
-
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-        className="mt-auto pb-8 text-[8px] md:text-[10px] text-white/20 tracking-widest uppercase text-center z-10"
-      >
-        © 2026 QUANGTHOAI RESTORE • Powered by Google Gemini AI
-      </motion.p>
     </div>
   );
 }
