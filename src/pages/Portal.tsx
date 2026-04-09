@@ -20,7 +20,7 @@ const cards = [
     desc: 'Phân tích AI tự động đếm khuôn mặt, phục hồi toàn cảnh, khử xước và lên màu ảnh lịch sử bằng Gemini Native.',
     color: 'purple',
     badge: 'Group',
-    bgImage: 'https://images.unsplash.com/photo-1511894551183-3d8a4f828c6d?q=80&w=1200&auto=format&fit=crop',
+    bgImage: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=1200&auto=format&fit=crop',
   },
   {
     to: '/id-photo',
@@ -29,7 +29,7 @@ const cards = [
     desc: 'Chuẩn hóa ảnh hồ sơ với nền trơn, bố cục ảnh thẻ, chỉnh nhẹ hướng nhìn, biểu cảm và thay trang phục formal.',
     color: 'fuchsia',
     badge: 'ID Photo',
-    bgImage: 'https://images.unsplash.com/photo-1614990297000-2991532d6202?q=80&w=1200&auto=format&fit=crop',
+    bgImage: 'https://images.unsplash.com/photo-1531746020768-018614088e78?q=80&w=1200&auto=format&fit=crop',
   },
 ];
 
