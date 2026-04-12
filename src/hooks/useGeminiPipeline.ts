@@ -115,6 +115,37 @@ export const useGeminiPipeline = () => {
     }
   }, []);
 
+  const upscaleImage = useCallback(async (
+    imageDataUri: string,
+    upscaleFactor: 'x2' | 'x4',
+  ): Promise<string> => {
+    setIsProcessing(true);
+    setError(null);
+    setStatus({ step: `Đang upscale ảnh (${upscaleFactor})…`, progress: 10 });
+
+    try {
+      setStatus({ step: 'Đang gửi ảnh lên Imagen 4.0 Upscale…', progress: 30 });
+
+      const response = await apiRequest<{ image: string }>('/api/process/upscale', {
+        method: 'POST',
+        body: JSON.stringify({ imageDataUri, upscaleFactor }),
+      });
+
+      if (!response.image) {
+        throw new Error('Imagen Upscale không trả về ảnh. Vui lòng thử lại.');
+      }
+
+      setStatus({ step: 'Upscale hoàn tất! ✓', progress: 100 });
+      setIsProcessing(false);
+      return response.image;
+    } catch (err: any) {
+      const msg = toUserFacingPipelineError(err);
+      setError(msg);
+      setIsProcessing(false);
+      throw err;
+    }
+  }, []);
+
   const resetState = useCallback(() => {
     setAnalysis(null);
     setError(null);
@@ -132,6 +163,7 @@ export const useGeminiPipeline = () => {
     setManualAnalysis,
     restoreImage,
     restoreIdPhoto,
+    upscaleImage,
     resetState,
   };
 };

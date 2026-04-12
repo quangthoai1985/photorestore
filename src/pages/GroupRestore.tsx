@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Palette,
   Users,
+  ArrowUpFromLine,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ImageSlider } from '../components/ImageSlider';
@@ -80,6 +81,7 @@ export default function GroupRestore() {
     analysis,
     setManualAnalysis,
     restoreImage,
+    upscaleImage,
     resetState,
   } = useGeminiPipeline();
 
@@ -92,6 +94,9 @@ export default function GroupRestore() {
   const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-image-preview');
   const [colorize, setColorize] = useState(false);
   const [subjectCountInput, setSubjectCountInput] = useState(String(DEFAULT_GROUP_ANALYSIS.subject_count));
+  const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
+  const [isUpscaling, setIsUpscaling] = useState(false);
+  const [upscaleFactor, setUpscaleFactor] = useState<'x2' | 'x4'>('x2');
   const { hasApiKey, refresh } = useApiKeyStatus();
 
   const syncAnalysis = (next: AnalysisResult) => {
@@ -169,6 +174,20 @@ export default function GroupRestore() {
     }
   };
 
+  const startUpscale = async () => {
+    if (!restoredImage || isUpscaling) return;
+    setIsUpscaling(true);
+    setUpscaledImage(null);
+    try {
+      const result = await upscaleImage(restoredImage, upscaleFactor);
+      setUpscaledImage(result);
+    } catch {
+      // error is set by the hook
+    } finally {
+      setIsUpscaling(false);
+    }
+  };
+
   const downloadGeminiImage = () => {
     if (!restoredImage) return;
     const link = document.createElement('a');
@@ -179,9 +198,23 @@ export default function GroupRestore() {
     document.body.removeChild(link);
   };
 
+  const downloadUpscaledImage = () => {
+    if (!upscaledImage) return;
+    const label = upscaleFactor === 'x2' ? '4K' : '8K';
+    const link = document.createElement('a');
+    link.href = upscaledImage;
+    link.download = `QUANGTHOAI_GROUP_${label}_${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const resetAll = () => {
     setOriginalImage(null);
     setRestoredImage(null);
+    setUpscaledImage(null);
+    setIsUpscaling(false);
+    setUpscaleFactor('x2');
     setStep('none');
     setColorize(false);
     setSubjectCountInput(String(DEFAULT_GROUP_ANALYSIS.subject_count));
@@ -344,7 +377,29 @@ export default function GroupRestore() {
                     <div className="space-y-4"><button onClick={() => setColorize(!colorize)} className={`w-full rounded-2xl border p-4 transition-all ${colorize ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3 text-left"><Palette className={`h-5 w-5 ${colorize ? 'text-emerald-400' : 'text-white/30'}`} /><div><p className="text-sm font-bold">Lên màu AI</p><p className="text-[10px] text-white/40">Tô màu tự nhiên cho ảnh đen trắng / sepia</p></div></div><div className={`relative h-5 w-10 rounded-full ${colorize ? 'bg-emerald-500' : 'bg-white/10'}`}><motion.div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white" animate={{ x: colorize ? 20 : 0 }} /></div></div></button><button onClick={startRestore} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3.5 text-sm font-bold text-white transition-all hover:from-emerald-500 hover:to-teal-500"><Sparkles className="h-4 w-4" />{isProcessing ? 'Đang phục hồi...' : 'Bắt đầu phục hồi'}</button></div>
                   ), activeStepIndex < 2)}
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 lg:sticky lg:bottom-4"><p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35">Quick Actions</p><div className="mt-3 space-y-3"><div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-white/60"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><CheckCircle2 className={`h-4 w-4 ${restoredImage ? 'text-emerald-300' : 'text-white/25'}`} /><span>{restoredImage ? 'Đã có ảnh Gemini để tải xuống' : 'Chưa có ảnh Gemini'}</span></div><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${restoredImage ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-white/[0.03] text-white/35'}`}>Gemini {restoredImage ? 'Ready' : 'Pending'}</span></div></div><button onClick={resetAll} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-bold text-white/80 transition-all hover:bg-white/[0.06] hover:text-white"><RefreshCw className="h-4 w-4" />Chọn ảnh khác</button>{restoredImage && <button onClick={downloadGeminiImage} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black shadow-lg transition-all hover:bg-emerald-50"><Download className="h-4 w-4 text-emerald-600" />Tải ảnh Gemini (2K)</button>}</div></div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 lg:sticky lg:bottom-4"><p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35">Quick Actions</p><div className="mt-3 space-y-3"><div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-white/60"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><CheckCircle2 className={`h-4 w-4 ${restoredImage ? 'text-emerald-300' : 'text-white/25'}`} /><span>{restoredImage ? 'Đã có ảnh Gemini để tải xuống' : 'Chưa có ảnh Gemini'}</span></div><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${restoredImage ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-white/[0.03] text-white/35'}`}>Gemini {restoredImage ? 'Ready' : 'Pending'}</span></div></div><button onClick={resetAll} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-bold text-white/80 transition-all hover:bg-white/[0.06] hover:text-white"><RefreshCw className="h-4 w-4" />Chọn ảnh khác</button>{restoredImage && <button onClick={downloadGeminiImage} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black shadow-lg transition-all hover:bg-emerald-50"><Download className="h-4 w-4 text-emerald-600" />Tải ảnh Gemini (2K)</button>}
+
+                          {restoredImage && (
+                            <div className="space-y-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-3">
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300/70">Imagen 4.0 Upscale</p>
+                              <div className="flex gap-2">
+                                <button onClick={() => setUpscaleFactor('x2')} className={`flex-1 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${upscaleFactor === 'x2' ? 'border-amber-500/40 bg-amber-500/15 text-amber-300' : 'border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/[0.06]'}`}>x2 (4K)</button>
+                                <button onClick={() => setUpscaleFactor('x4')} className={`flex-1 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${upscaleFactor === 'x4' ? 'border-amber-500/40 bg-amber-500/15 text-amber-300' : 'border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/[0.06]'}`}>x4 (8K)</button>
+                              </div>
+                              <button onClick={startUpscale} disabled={isUpscaling} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 py-2.5 text-xs font-bold text-white transition-all hover:from-amber-500 hover:to-orange-500 disabled:opacity-50">
+                                <ArrowUpFromLine className="h-3.5 w-3.5" />
+                                {isUpscaling ? 'Đang upscale...' : `Upscale ${upscaleFactor === 'x2' ? '4K' : '8K'}`}
+                              </button>
+                              {upscaleFactor === 'x4' && <p className="text-[10px] text-amber-200/50">x4 yêu cầu ảnh gốc nhỏ hơn ~2MP (giới hạn 17MP output)</p>}
+                            </div>
+                          )}
+
+                          {upscaledImage && (
+                            <button onClick={downloadUpscaledImage} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-sm font-bold text-white shadow-lg transition-all hover:from-amber-400 hover:to-orange-400">
+                              <Download className="h-4 w-4" />
+                              Tải ảnh Upscaled ({upscaleFactor === 'x2' ? '4K' : '8K'})
+                            </button>
+                          )}</div></div>
                 </div></div></aside>
               </div>
             </motion.div>

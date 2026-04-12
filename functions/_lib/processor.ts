@@ -9,6 +9,10 @@ interface ProcessorResponse {
   };
 }
 
+interface UpscaleResponse {
+  image: string;
+}
+
 function normalizeProcessorBaseUrl(value: string) {
   return value.endsWith('/') ? value.slice(0, -1) : value;
 }
@@ -26,6 +30,29 @@ function ensureProcessorConfigured(env: Env) {
     baseUrl: normalizeProcessorBaseUrl(env.GEMINI_PROCESSOR_URL),
     sharedSecret: env.PROCESSOR_SHARED_SECRET,
   };
+}
+
+export async function callUpscaleProcessor(
+  env: Env,
+  payload: unknown,
+): Promise<UpscaleResponse> {
+  const { baseUrl, sharedSecret } = ensureProcessorConfigured(env);
+
+  const response = await fetch(`${baseUrl}/process/upscale`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Processor-Secret': sharedSecret,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Upscale processor failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<UpscaleResponse>;
 }
 
 export async function callGeminiProcessor(

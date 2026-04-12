@@ -1,11 +1,16 @@
 import http from 'node:http';
 import { GoogleGenAI } from '@google/genai';
+import { GoogleAuth } from 'google-auth-library';
 
 const PORT = Number(process.env.PORT || 8080);
 const PROCESSOR_SHARED_SECRET = process.env.PROCESSOR_SHARED_SECRET || '';
+const GCP_PROJECT_ID = process.env.GCP_PROJECT_ID || '';
+const GCP_REGION = process.env.GCP_REGION || 'us-central1';
 const API_TIMEOUT_MS = 120_000;
+const UPSCALE_TIMEOUT_MS = 180_000;
 const DEFAULT_OUTPUT_RESOLUTION = '2K';
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const UPSCALE_MIME_TYPES = new Set(['image/jpeg', 'image/png']);
 
 const CORE_SYSTEM_PROMPT = `===============================================================
 SYSTEM DIRECTIVE - PHOTO RESTORATION CORE RULES v4.0
@@ -346,6 +351,89 @@ async function processIdPhoto(apiKey, imageDataUri, options) {
   };
 }
 
+async function processUpscale(imageDataUri, upscaleFactor) {
+  if (!GCP_PROJECT_ID) {
+    throw new Error('GCP_PROJECT_ID chưa được cấu hình trên Cloud Run.');
+  }
+
+  const { base64Data, mimeType } = extractImagePayload(imageDataUri);
+
+  if (!UPSCALE_MIME_TYPES.has(mimeType)) {
+    throw new Error(`Upscale chỉ hỗ trợ JPEG và PNG. Định dạng hiện tại: ${mimeType}`);
+  }
+
+  const validFactors = ['x2', 'x4'];
+  if (!validFactors.includes(upscaleFactor)) {
+    throw new Error(`Upscale factor không hợp lệ: ${upscaleFactor}. Chỉ hỗ trợ: ${validFactors.join(', ')}`);
+  }
+
+  const auth = new GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  });
+  const client = await auth.getClient();
+  const accessToken = (await client.getAccessToken()).token;
+
+  const endpoint = `https://${GCP_REGION}-aiplatform.googleapis.com/v1/projects/${GCP_PROJECT_ID}/locations/${GCP_REGION}/publishers/google/models/imagen-4.0-upscale-preview:predict`;
+
+  const requestBody = {
+    instances: [
+      {
+        prompt: 'Upscale the image with maximum quality and sharpness',
+        image: { bytesBase64Encoded: base64Data },
+      },
+    ],
+    parameters: {
+      mode: 'upscale',
+      upscaleConfig: { upscaleFactor },
+      outputOptions: {
+        mimeType: mimeType === 'image/png' ? 'image/png' : 'image/jpeg',
+        compressionQuality: 95,
+      },
+    },
+  };
+
+  const fetchPromise = fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const res = await withTimeout(fetchPromise, UPSCALE_TIMEOUT_MS, 'Imagen Upscale');
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Imagen Upscale lỗi (${res.status}): ${errText}`);
+  }
+
+  const result = await res.json();
+  const prediction = result.predictions?.[0];
+
+  if (!prediction?.bytesBase64Encoded) {
+    throw new Error('Imagen Upscale không trả về ảnh. Vui lòng thử lại.');
+  }
+
+  const outputMime = prediction.mimeType || mimeType;
+  return {
+    image: `data:${outputMime};base64,${prediction.bytesBase64Encoded}`,
+  };
+}
+
+async function handleProcessUpscale(request, response) {
+  requireSharedSecret(request);
+  const body = await readRequestBody(request);
+
+  if (!body.imageDataUri || !body.upscaleFactor) {
+    sendText(response, 400, 'Thiếu imageDataUri hoặc upscaleFactor.');
+    return;
+  }
+
+  const result = await processUpscale(body.imageDataUri, body.upscaleFactor);
+  sendJson(response, 200, result);
+}
+
 async function handleProcessRestore(request, response) {
   requireSharedSecret(request);
   const body = await readRequestBody(request);
@@ -396,6 +484,11 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === 'POST' && request.url === '/process/id-photo') {
       await handleProcessIdPhoto(request, response);
+      return;
+    }
+
+    if (request.method === 'POST' && request.url === '/process/upscale') {
+      await handleProcessUpscale(request, response);
       return;
     }
 

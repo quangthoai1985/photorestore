@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   ScanFace,
   Crop,
+  ArrowUpFromLine,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
@@ -257,6 +258,7 @@ export default function IdPhoto() {
     error,
     setError,
     restoreIdPhoto,
+    upscaleImage,
     resetState,
   } = useGeminiPipeline();
 
@@ -267,6 +269,9 @@ export default function IdPhoto() {
   const [clothingPreset, setClothingPreset] = useState('male-white-shirt');
   const [customClothing, setCustomClothing] = useState('');
   const [isApiDialogOpen, setIsApiDialogOpen] = useState(false);
+  const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
+  const [isUpscaling, setIsUpscaling] = useState(false);
+  const [upscaleFactor, setUpscaleFactor] = useState<'x2' | 'x4'>('x2');
   const { hasApiKey, refresh } = useApiKeyStatus();
 
   const updateOptions = (patch: Partial<IdPhotoOptions>) => {
@@ -276,6 +281,9 @@ export default function IdPhoto() {
   const resetWorkspace = () => {
     setOriginalImage(null);
     setResultImage(null);
+    setUpscaledImage(null);
+    setIsUpscaling(false);
+    setUpscaleFactor('x2');
     setStep('none');
     setOptions(DEFAULT_ID_OPTIONS);
     setClothingPreset('male-white-shirt');
@@ -340,11 +348,36 @@ export default function IdPhoto() {
     }
   };
 
+  const startUpscale = async () => {
+    if (!resultImage || isUpscaling) return;
+    setIsUpscaling(true);
+    setUpscaledImage(null);
+    try {
+      const result = await upscaleImage(resultImage, upscaleFactor);
+      setUpscaledImage(result);
+    } catch {
+      // error is set by the hook
+    } finally {
+      setIsUpscaling(false);
+    }
+  };
+
   const downloadImage = () => {
     if (!resultImage) return;
     const link = document.createElement('a');
     link.href = resultImage;
     link.download = `QUANGTHOAI_ID_PHOTO_2K_${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadUpscaledImage = () => {
+    if (!upscaledImage) return;
+    const label = upscaleFactor === 'x2' ? '4K' : '8K';
+    const link = document.createElement('a');
+    link.href = upscaledImage;
+    link.download = `QUANGTHOAI_ID_PHOTO_${label}_${Date.now()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -614,6 +647,28 @@ export default function IdPhoto() {
                           <button onClick={resetWorkspace} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-bold text-white/80 transition-all hover:bg-white/[0.06] hover:text-white"><RefreshCw className="h-4 w-4" />Chọn ảnh khác</button>
 
                           {resultImage && <button onClick={downloadImage} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black shadow-lg transition-all hover:bg-fuchsia-50"><Download className="h-4 w-4 text-fuchsia-600" />Tải ảnh ID Photo (2K)</button>}
+
+                          {resultImage && (
+                            <div className="space-y-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-3">
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300/70">Imagen 4.0 Upscale</p>
+                              <div className="flex gap-2">
+                                <button onClick={() => setUpscaleFactor('x2')} className={`flex-1 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${upscaleFactor === 'x2' ? 'border-amber-500/40 bg-amber-500/15 text-amber-300' : 'border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/[0.06]'}`}>x2 (4K)</button>
+                                <button onClick={() => setUpscaleFactor('x4')} className={`flex-1 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${upscaleFactor === 'x4' ? 'border-amber-500/40 bg-amber-500/15 text-amber-300' : 'border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/[0.06]'}`}>x4 (8K)</button>
+                              </div>
+                              <button onClick={startUpscale} disabled={isUpscaling} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 py-2.5 text-xs font-bold text-white transition-all hover:from-amber-500 hover:to-orange-500 disabled:opacity-50">
+                                <ArrowUpFromLine className="h-3.5 w-3.5" />
+                                {isUpscaling ? 'Đang upscale...' : `Upscale ${upscaleFactor === 'x2' ? '4K' : '8K'}`}
+                              </button>
+                              {upscaleFactor === 'x4' && <p className="text-[10px] text-amber-200/50">x4 yêu cầu ảnh gốc nhỏ hơn ~2MP (giới hạn 17MP output)</p>}
+                            </div>
+                          )}
+
+                          {upscaledImage && (
+                            <button onClick={downloadUpscaledImage} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-sm font-bold text-white shadow-lg transition-all hover:from-amber-400 hover:to-orange-400">
+                              <Download className="h-4 w-4" />
+                              Tải ảnh Upscaled ({upscaleFactor === 'x2' ? '4K' : '8K'})
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
