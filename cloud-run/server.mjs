@@ -176,7 +176,12 @@ function buildUserPrompt(analysisData, options) {
 }
 
 function buildIdPhotoPrompt(options) {
-  const backgroundInstruction = options.backgroundMode === 'custom'
+  const hasClothingRef = options.clothingMode === 'reference_image' && options.replaceClothing;
+  const hasBackgroundRef = options.backgroundMode === 'reference_image';
+
+  const backgroundInstruction = options.backgroundMode === 'reference_image'
+    ? 'Use the reference background image provided in this request (see BACKGROUND FROM REFERENCE IMAGE section below).'
+    : options.backgroundMode === 'custom'
     ? (options.backgroundCustomPrompt?.trim() || 'Clean solid studio background, uniform and distraction-free.')
     : options.backgroundMode === 'white'
     ? 'Pure white studio background, clean, uniform, and shadow-free.'
@@ -186,8 +191,20 @@ function buildIdPhotoPrompt(options) {
 
   let prompt = `${ID_PHOTO_CORE_PROMPT}\n\n=== OUTPUT FORMAT ===\n- Final aspect ratio: ${options.aspectRatio}\n- Output resolution: ${DEFAULT_OUTPUT_RESOLUTION}\n- Maintain clean official ID-photo composition.\n\n=== BACKGROUND ===\n- ${backgroundInstruction}\n\n=== SAFETY ===\n- Preserve exact facial identity, age, skin texture, and recognizable facial proportions.\n- Do not beautify or redesign facial structure.`;
 
-  if (options.replaceClothing && options.clothingPrompt) {
+  if (hasClothingRef) {
+    prompt += `\n\n=== CLOTHING FROM REFERENCE IMAGE ===\nIMPORTANT: A reference clothing image is provided in this request, labeled "REFERENCE CLOTHING".\nYour task:\n1. EXTRACT the clothing style from the reference image: exact color, fabric type, collar shape, sleeve style, layering, and overall silhouette.\n2. DRESS the subject in the extracted clothing, adapting it naturally to the subject's body proportions, pose, and shoulder width.\n3. MATCH lighting on the clothing to the subject's original lighting direction and intensity.\n4. PRESERVE realistic fabric behavior: natural wrinkles, draping, and shadows where the body bends.\n\nSTRICTLY FORBIDDEN:\n- Do NOT copy the face, hair, skin, or body shape from the reference clothing image.\n- Do NOT make the clothing look pasted or digitally composited.\n- Keep body proportions realistic and preserve neck, shoulder width, and posture naturally.`;
+    if (options.clothingPrompt?.trim()) {
+      prompt += `\n- Additional clothing notes from user: ${options.clothingPrompt.trim()}`;
+    }
+  } else if (options.replaceClothing && options.clothingPrompt) {
     prompt += `\n\n=== CLOTHING ===\n- Replace clothing with: ${options.clothingPrompt}`;
+  }
+
+  if (hasBackgroundRef) {
+    prompt += `\n\n=== BACKGROUND FROM REFERENCE IMAGE ===\nIMPORTANT: A reference background image is provided in this request, labeled "REFERENCE BACKGROUND".\nYour task:\n1. REPRODUCE the environment, scene composition, lighting mood, and color palette from the reference background image.\n2. PLACE the subject naturally into that scene with correct perspective, depth of field, and shadow direction.\n3. BLEND the subject's edges (hair, ears, shoulders, jawline) seamlessly with the new background.\n4. ADJUST the subject's lighting to match the background's ambient lighting for visual coherence.\n\nSTRICTLY FORBIDDEN:\n- Do NOT copy any people, faces, or body parts from the reference background.\n- Do NOT distort the subject's proportions to fit the background.`;
+    if (options.backgroundCustomPrompt?.trim()) {
+      prompt += `\n- Additional background notes from user: ${options.backgroundCustomPrompt.trim()}`;
+    }
   }
 
   if (options.additionalInstructions?.trim()) {
@@ -242,19 +259,35 @@ async function generateWithRetry(ai, params, label, maxRetries = 2) {
   throw lastError;
 }
 
-async function runImageGeneration(apiKey, modelName, base64Data, mimeType, prompt, label) {
+async function runImageGeneration(apiKey, modelName, base64Data, mimeType, prompt, label, referenceImages) {
   const ai = new GoogleGenAI({ apiKey });
+
+  const parts = [];
+
+  // Label and add subject photo
+  if (referenceImages?.length) {
+    parts.push({ text: '=== SUBJECT PHOTO (Image 1) ===' });
+  }
+  parts.push({ inlineData: { data: base64Data, mimeType } });
+
+  // Add reference images with labels
+  if (referenceImages?.length) {
+    let imageIndex = 2;
+    for (const ref of referenceImages) {
+      parts.push({ text: `=== ${ref.label} (Image ${imageIndex}) ===` });
+      parts.push({ inlineData: { data: ref.base64Data, mimeType: ref.mimeType } });
+      imageIndex += 1;
+    }
+  }
+
+  // Add prompt text last
+  parts.push({ text: prompt });
 
   return generateWithRetry(
     ai,
     {
       model: modelName,
-      contents: {
-        parts: [
-          { inlineData: { data: base64Data, mimeType } },
-          { text: prompt },
-        ],
-      },
+      contents: { parts },
       config: {
         temperature: 0.1,
         responseModalities: ['IMAGE', 'TEXT'],
@@ -314,12 +347,33 @@ async function processIdPhoto(apiKey, imageDataUri, options) {
   const prompt = buildIdPhotoPrompt(options);
   const fallbackModels = restoreModelFallbacks(options.model);
 
+  // Build reference images array
+  const referenceImages = [];
+
+  if (options.replaceClothing && options.clothingMode === 'reference_image' && options.clothingReferenceImage) {
+    const clothingPayload = extractImagePayload(options.clothingReferenceImage);
+    referenceImages.push({
+      label: 'REFERENCE CLOTHING',
+      base64Data: clothingPayload.base64Data,
+      mimeType: clothingPayload.mimeType,
+    });
+  }
+
+  if (options.backgroundMode === 'reference_image' && options.backgroundReferenceImage) {
+    const bgPayload = extractImagePayload(options.backgroundReferenceImage);
+    referenceImages.push({
+      label: 'REFERENCE BACKGROUND',
+      base64Data: bgPayload.base64Data,
+      mimeType: bgPayload.mimeType,
+    });
+  }
+
   let response = null;
   let lastError = null;
 
   for (const model of fallbackModels) {
     try {
-      response = await runImageGeneration(apiKey, model, base64Data, mimeType, prompt, `IdPhoto:${model}`);
+      response = await runImageGeneration(apiKey, model, base64Data, mimeType, prompt, `IdPhoto:${model}`, referenceImages.length > 0 ? referenceImages : undefined);
       break;
     } catch (error) {
       lastError = error;

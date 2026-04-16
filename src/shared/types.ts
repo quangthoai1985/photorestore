@@ -31,7 +31,8 @@ export interface RestoreOptions {
 }
 
 export type IdPhotoAspectRatio = '3:4' | '4:3' | '4:6' | '6:4' | '2:3' | '3:2' | '1:1';
-export type IdPhotoBackgroundMode = 'white' | 'blue' | 'gray' | 'custom';
+export type IdPhotoBackgroundMode = 'white' | 'blue' | 'gray' | 'custom' | 'reference_image';
+export type IdPhotoClothingMode = 'preset' | 'custom_text' | 'reference_image';
 export type IdPhotoGaze = 'keep' | 'look_straight' | 'slight_frontal_adjust';
 export type IdPhotoExpression = 'keep' | 'neutral' | 'soft_smile' | 'serious';
 export type IdPhotoPose =
@@ -54,8 +55,11 @@ export interface IdPhotoOptions {
   cropStyle: IdPhotoCrop;
   backgroundMode: IdPhotoBackgroundMode;
   backgroundCustomPrompt: string | null;
+  backgroundReferenceImage: string | null;
   replaceClothing: boolean;
   clothingPrompt: string | null;
+  clothingMode: IdPhotoClothingMode;
+  clothingReferenceImage: string | null;
   gazeDirection: IdPhotoGaze;
   expressionPreset: IdPhotoExpression;
   poseCorrection: IdPhotoPose;

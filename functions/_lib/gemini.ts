@@ -12,6 +12,12 @@ import {
 } from '../../src/shared/geminiPipeline';
 import type { AnalysisResult, IdPhotoOptions, RestoreOptions } from '../../src/shared/types';
 
+interface ReferenceImage {
+  label: string;
+  base64Data: string;
+  mimeType: string;
+}
+
 function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
@@ -68,19 +74,43 @@ function calculateCostUsd(inputTokens: number, outputTokens: number) {
   return 0;
 }
 
-async function runImageGeneration(apiKey: string, modelName: string, base64Data: string, mimeType: string, prompt: string, label: string) {
+async function runImageGeneration(
+  apiKey: string,
+  modelName: string,
+  base64Data: string,
+  mimeType: string,
+  prompt: string,
+  label: string,
+  referenceImages?: ReferenceImage[],
+) {
   const ai = new GoogleGenAI({ apiKey });
+
+  const parts: any[] = [];
+
+  // Label and add subject photo
+  if (referenceImages?.length) {
+    parts.push({ text: '=== SUBJECT PHOTO (Image 1) ===' });
+  }
+  parts.push({ inlineData: { data: base64Data, mimeType } });
+
+  // Add reference images with labels
+  if (referenceImages?.length) {
+    let imageIndex = 2;
+    for (const ref of referenceImages) {
+      parts.push({ text: `=== ${ref.label} (Image ${imageIndex}) ===` });
+      parts.push({ inlineData: { data: ref.base64Data, mimeType: ref.mimeType } });
+      imageIndex += 1;
+    }
+  }
+
+  // Add prompt text last
+  parts.push({ text: prompt });
 
   return generateWithRetry(
     ai,
     {
       model: modelName,
-      contents: {
-        parts: [
-          { inlineData: { data: base64Data, mimeType } },
-          { text: prompt },
-        ],
-      },
+      contents: { parts },
       config: {
         temperature: 0.1,
         responseModalities: ['IMAGE', 'TEXT'],
@@ -141,12 +171,33 @@ export async function processIdPhoto(apiKey: string, imageDataUri: string, optio
   const prompt = buildIdPhotoPrompt(options);
   const fallbackModels = restoreModelFallbacks(options.model);
 
+  // Build reference images array
+  const referenceImages: ReferenceImage[] = [];
+
+  if (options.replaceClothing && options.clothingMode === 'reference_image' && options.clothingReferenceImage) {
+    const clothingPayload = extractImagePayload(options.clothingReferenceImage);
+    referenceImages.push({
+      label: 'REFERENCE CLOTHING',
+      base64Data: clothingPayload.base64Data,
+      mimeType: clothingPayload.mimeType,
+    });
+  }
+
+  if (options.backgroundMode === 'reference_image' && options.backgroundReferenceImage) {
+    const bgPayload = extractImagePayload(options.backgroundReferenceImage);
+    referenceImages.push({
+      label: 'REFERENCE BACKGROUND',
+      base64Data: bgPayload.base64Data,
+      mimeType: bgPayload.mimeType,
+    });
+  }
+
   let response: any = null;
   let lastError: unknown = null;
 
   for (const model of fallbackModels) {
     try {
-      response = await runImageGeneration(apiKey, model, base64Data, mimeType, prompt, `IdPhoto:${model}`);
+      response = await runImageGeneration(apiKey, model, base64Data, mimeType, prompt, `IdPhoto:${model}`, referenceImages.length > 0 ? referenceImages : undefined);
       break;
     } catch (error) {
       lastError = error;

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   Upload,
   Sparkles,
@@ -15,6 +15,8 @@ import {
   ScanFace,
   Crop,
   ArrowUpFromLine,
+  X,
+  ImagePlus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
@@ -25,6 +27,7 @@ import {
   ModelType,
   IdPhotoAspectRatio,
   IdPhotoBackgroundMode,
+  IdPhotoClothingMode,
   IdPhotoCrop,
   IdPhotoExpression,
   IdPhotoGaze,
@@ -200,6 +203,7 @@ const BACKGROUND_OPTIONS: Array<{ id: IdPhotoBackgroundMode; label: string; desc
   { id: 'blue', label: 'Xanh', desc: 'Nền xanh ảnh thẻ phổ biến' },
   { id: 'gray', label: 'Xám nhạt', desc: 'Studio trung tính' },
   { id: 'custom', label: 'Tùy chỉnh', desc: 'Tự mô tả nền mong muốn' },
+  { id: 'reference_image', label: 'Upload ảnh nền', desc: 'Dùng ảnh nền bạn tự chọn' },
 ];
 
 const GAZE_OPTIONS: Array<{ id: IdPhotoGaze; label: string; desc: string }> = [
@@ -237,14 +241,19 @@ const CROP_OPTIONS: Array<{ id: IdPhotoCrop; label: string; desc: string }> = [
   { id: 'half_body', label: 'Nửa người', desc: 'Thoáng hơn nếu cần hồ sơ' },
 ];
 
+const MAX_REF_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+
 const DEFAULT_ID_OPTIONS: IdPhotoOptions = {
   model: 'gemini-3-pro-image-preview',
   aspectRatio: '3:4',
   cropStyle: 'auto_id',
   backgroundMode: 'white',
   backgroundCustomPrompt: null,
+  backgroundReferenceImage: null,
   replaceClothing: false,
   clothingPrompt: null,
+  clothingMode: 'preset',
+  clothingReferenceImage: null,
   gazeDirection: 'look_straight',
   expressionPreset: 'neutral',
   poseCorrection: 'standard_id',
@@ -272,6 +281,8 @@ export default function IdPhoto() {
   const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
   const [isUpscaling, setIsUpscaling] = useState(false);
   const [upscaleFactor, setUpscaleFactor] = useState<'x2' | 'x4'>('x2');
+  const [clothingRefImage, setClothingRefImage] = useState<string | null>(null);
+  const [backgroundRefImage, setBackgroundRefImage] = useState<string | null>(null);
   const { hasApiKey, refresh } = useApiKeyStatus();
 
   const updateOptions = (patch: Partial<IdPhotoOptions>) => {
@@ -288,6 +299,8 @@ export default function IdPhoto() {
     setOptions(DEFAULT_ID_OPTIONS);
     setClothingPreset('male-white-shirt');
     setCustomClothing('');
+    setClothingRefImage(null);
+    setBackgroundRefImage(null);
     resetState();
   };
 
@@ -307,6 +320,8 @@ export default function IdPhoto() {
       setOptions(DEFAULT_ID_OPTIONS);
       setClothingPreset('male-white-shirt');
       setCustomClothing('');
+      setClothingRefImage(null);
+      setBackgroundRefImage(null);
       setStep('format');
     };
     reader.readAsDataURL(file);
@@ -323,19 +338,42 @@ export default function IdPhoto() {
     if (file) handleFile(file);
   };
 
+  const handleRefImageUpload = (
+    file: File,
+    setter: (value: string | null) => void,
+  ) => {
+    if (file.size > MAX_REF_IMAGE_SIZE) {
+      setError('Ảnh tham chiếu tối đa 5MB. Vui lòng chọn ảnh nhỏ hơn.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setter(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const startGenerate = async () => {
     if (!originalImage) return;
     setStep('processing');
 
+    const isRefClothing = clothingPreset === 'reference_image';
     const selectedClothingPreset = CLOTHING_PRESETS.find((item) => item.id === clothingPreset);
     const clothingPrompt = options.replaceClothing
-      ? (clothingPreset === 'custom' ? customClothing : selectedClothingPreset?.prompt || '')
+      ? (isRefClothing ? customClothing || null : clothingPreset === 'custom' ? customClothing : selectedClothingPreset?.prompt || '')
       : null;
+
+    const clothingMode: IdPhotoClothingMode = isRefClothing
+      ? 'reference_image'
+      : clothingPreset === 'custom' ? 'custom_text' : 'preset';
 
     try {
       const result = await restoreIdPhoto(originalImage, {
         ...options,
         clothingPrompt,
+        clothingMode,
+        clothingReferenceImage: isRefClothing ? clothingRefImage : null,
+        backgroundReferenceImage: options.backgroundMode === 'reference_image' ? backgroundRefImage : null,
       });
       setResultImage(result);
       setStep('style');
@@ -531,6 +569,29 @@ export default function IdPhoto() {
                               ))}
                             </div>
                             {options.backgroundMode === 'custom' && <textarea value={options.backgroundCustomPrompt ?? ''} onChange={(e) => updateOptions({ backgroundCustomPrompt: e.target.value.trim() ? e.target.value : null })} rows={3} placeholder="Ví dụ: Nền trắng ngà sạch, studio mềm, không đổ bóng..." className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none" />}
+                            {options.backgroundMode === 'reference_image' && (
+                              <div className="mt-3 space-y-3">
+                                {backgroundRefImage ? (
+                                  <div className="relative rounded-2xl border border-cyan-500/30 bg-cyan-500/[0.05] p-3">
+                                    <div className="flex items-center gap-3">
+                                      <img src={backgroundRefImage} alt="Nền tham chiếu" className="h-16 w-16 rounded-xl border border-white/10 object-cover" />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-bold text-cyan-300">Ảnh nền tham chiếu</p>
+                                        <p className="mt-1 text-[10px] text-white/40">AI sẽ ghép nền dựa trên ảnh này</p>
+                                      </div>
+                                      <button onClick={() => setBackgroundRefImage(null)} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/40 transition-colors hover:bg-red-500/10 hover:text-red-400"><X className="h-3.5 w-3.5" /></button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-white/10 bg-white/[0.02] py-6 transition-all hover:border-cyan-500/30 hover:bg-cyan-500/[0.03]">
+                                    <ImagePlus className="h-8 w-8 text-white/25" />
+                                    <span className="text-xs text-white/40">Chọn ảnh nền tham chiếu (Max 5MB)</span>
+                                    <input type="file" className="hidden" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleRefImageUpload(f, setBackgroundRefImage); e.target.value = ''; }} />
+                                  </label>
+                                )}
+                                <textarea value={options.backgroundCustomPrompt ?? ''} onChange={(e) => updateOptions({ backgroundCustomPrompt: e.target.value.trim() ? e.target.value : null })} rows={2} placeholder="Ghi chú thêm (không bắt buộc): Giữ tone sáng, blur nền nhẹ..." className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white placeholder:text-white/20 focus:outline-none" />
+                              </div>
+                            )}
                           </div>
 
                           <button onClick={() => setStep('subject')} className="w-full rounded-2xl bg-gradient-to-r from-fuchsia-600 to-cyan-600 py-3 text-sm font-bold text-white transition-all hover:from-fuchsia-500 hover:to-cyan-500">Tiếp tục sang bước 2</button>
@@ -618,6 +679,29 @@ export default function IdPhoto() {
                                     <p className="px-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/35">Tùy chỉnh</p>
                                     <button onClick={() => setClothingPreset('custom')} className={`w-full rounded-xl border px-3 py-3 text-left transition-all ${clothingPreset === 'custom' ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300' : 'border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.06]'}`}><p className="text-xs font-semibold">Tự mô tả trang phục</p><p className="mt-1 text-[10px] text-white/35">Dùng khi preset chưa đủ đúng nhu cầu</p></button>
                                     {clothingPreset === 'custom' && <input type="text" value={customClothing} onChange={(e) => setCustomClothing(e.target.value)} placeholder="Ví dụ: Sơ mi trắng có cổ đứng, vest xanh navy lịch sự..." className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white placeholder:text-white/20 focus:outline-none" />}
+
+                                    <button onClick={() => setClothingPreset('reference_image')} className={`w-full rounded-xl border px-3 py-3 text-left transition-all ${clothingPreset === 'reference_image' ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' : 'border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.06]'}`}><div className="flex items-center gap-3"><ImagePlus className={`h-4 w-4 ${clothingPreset === 'reference_image' ? 'text-cyan-300' : 'text-white/30'}`} /><div><p className="text-xs font-semibold">Upload ảnh trang phục</p><p className="mt-1 text-[10px] text-white/35">Dùng ảnh áo/trang phục bạn tự chọn</p></div></div></button>
+                                    {clothingPreset === 'reference_image' && (
+                                      <div className="space-y-3 rounded-xl border border-cyan-500/15 bg-cyan-500/[0.04] p-3">
+                                        {clothingRefImage ? (
+                                          <div className="flex items-center gap-3">
+                                            <img src={clothingRefImage} alt="Trang phục tham chiếu" className="h-16 w-16 rounded-xl border border-white/10 object-cover" />
+                                            <div className="min-w-0 flex-1">
+                                              <p className="text-xs font-bold text-cyan-300">Ảnh trang phục tham chiếu</p>
+                                              <p className="mt-1 text-[10px] text-white/40">AI sẽ ghép kiểu trang phục này</p>
+                                            </div>
+                                            <button onClick={() => setClothingRefImage(null)} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/40 transition-colors hover:bg-red-500/10 hover:text-red-400"><X className="h-3.5 w-3.5" /></button>
+                                          </div>
+                                        ) : (
+                                          <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-white/10 bg-white/[0.02] py-5 transition-all hover:border-cyan-500/30 hover:bg-cyan-500/[0.03]">
+                                            <ImagePlus className="h-7 w-7 text-white/25" />
+                                            <span className="text-[11px] text-white/40">Chọn ảnh trang phục (Max 5MB)</span>
+                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleRefImageUpload(f, setClothingRefImage); e.target.value = ''; }} />
+                                          </label>
+                                        )}
+                                        <input type="text" value={customClothing} onChange={(e) => setCustomClothing(e.target.value)} placeholder="Ghi chú thêm: Chỉ lấy áo vest, bỏ cà vạt..." className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] text-white placeholder:text-white/20 focus:outline-none" />
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </motion.div>

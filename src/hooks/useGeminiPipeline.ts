@@ -25,6 +25,7 @@ export type { AnalysisResult, IdPhotoOptions, ModelType, RestoreOptions } from '
 export type {
   IdPhotoAspectRatio,
   IdPhotoBackgroundMode,
+  IdPhotoClothingMode,
   IdPhotoCrop,
   IdPhotoExpression,
   IdPhotoGaze,

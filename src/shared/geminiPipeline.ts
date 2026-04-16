@@ -268,7 +268,12 @@ Every area must be equally sharp. No region should be blurry or soft.`;
 }
 
 export function buildIdPhotoPrompt(options: IdPhotoOptions): string {
-  const backgroundInstruction = options.backgroundMode === 'custom'
+  const hasClothingRef = options.clothingMode === 'reference_image' && options.replaceClothing;
+  const hasBackgroundRef = options.backgroundMode === 'reference_image';
+
+  const backgroundInstruction = options.backgroundMode === 'reference_image'
+    ? 'Use the reference background image provided in this request (see BACKGROUND FROM REFERENCE IMAGE section below).'
+    : options.backgroundMode === 'custom'
     ? (options.backgroundCustomPrompt?.trim() || 'Clean solid studio background, uniform and distraction-free.')
     : options.backgroundMode === 'white'
     ? 'Pure white studio background, clean, uniform, and shadow-free.'
@@ -344,7 +349,28 @@ export function buildIdPhotoPrompt(options: IdPhotoOptions): string {
 - Do not create a fashion-editorial pose, glamour pose, or overly dramatic body angle.
 `;
 
-  if (options.replaceClothing && options.clothingPrompt) {
+  if (hasClothingRef) {
+    prompt += `
+
+=== CLOTHING FROM REFERENCE IMAGE ===
+IMPORTANT: A reference clothing image is provided in this request, labeled "REFERENCE CLOTHING".
+Your task:
+1. EXTRACT the clothing style from the reference image: exact color, fabric type, collar shape, sleeve style, layering, and overall silhouette.
+2. DRESS the subject in the extracted clothing, adapting it naturally to the subject's body proportions, pose, and shoulder width.
+3. MATCH lighting on the clothing to the subject's original lighting direction and intensity.
+4. PRESERVE realistic fabric behavior: natural wrinkles, draping, and shadows where the body bends.
+
+STRICTLY FORBIDDEN:
+- Do NOT copy the face, hair, skin, or body shape from the reference clothing image.
+- Do NOT make the clothing look pasted or digitally composited.
+- The clothing must appear as if the subject was actually wearing it during the photo session.
+- Keep body proportions realistic and preserve neck, shoulder width, and posture naturally.
+- Clothing must look formal, realistic, and appropriate for Vietnamese ID/profile use.`;
+    if (options.clothingPrompt?.trim()) {
+      prompt += `
+- Additional clothing notes from user: ${options.clothingPrompt.trim()}`;
+    }
+  } else if (options.replaceClothing && options.clothingPrompt) {
     prompt += `
 
 === CLOTHING ===
@@ -356,6 +382,27 @@ export function buildIdPhotoPrompt(options: IdPhotoOptions): string {
 
 === CLOTHING ===
 - Keep existing clothing unless it conflicts with the requested formal presentation.`;
+  }
+
+  if (hasBackgroundRef) {
+    prompt += `
+
+=== BACKGROUND FROM REFERENCE IMAGE ===
+IMPORTANT: A reference background image is provided in this request, labeled "REFERENCE BACKGROUND".
+Your task:
+1. REPRODUCE the environment, scene composition, lighting mood, and color palette from the reference background image.
+2. PLACE the subject naturally into that scene with correct perspective, depth of field, and shadow direction.
+3. BLEND the subject's edges (hair, ears, shoulders, jawline) seamlessly with the new background.
+4. ADJUST the subject's lighting to match the background's ambient lighting for visual coherence.
+
+STRICTLY FORBIDDEN:
+- Do NOT copy any people, faces, or body parts from the reference background.
+- Do NOT distort the subject's proportions to fit the background.
+- The result must look like a single natural photograph, not a composited image.`;
+    if (options.backgroundCustomPrompt?.trim()) {
+      prompt += `
+- Additional background notes from user: ${options.backgroundCustomPrompt.trim()}`;
+    }
   }
 
   if (options.additionalInstructions?.trim()) {
