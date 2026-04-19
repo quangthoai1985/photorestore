@@ -358,15 +358,37 @@ export default function IdPhoto() {
     reader.readAsDataURL(file);
   };
 
+  const resizeDataUri = (dataUri: string, maxDim = 800, quality = 0.75): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const { width, height } = img;
+        if (width <= maxDim && height <= maxDim) {
+          resolve(dataUri);
+          return;
+        }
+        const scale = Math.min(maxDim / width, maxDim / height);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(dataUri);
+      img.src = dataUri;
+    });
+
   const fetchPresetBackground = async (url: string): Promise<string> => {
     const res = await fetch(url);
     const blob = await res.blob();
-    return new Promise<string>((resolve, reject) => {
+    const raw = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+    return resizeDataUri(raw);
   };
 
   const startGenerate = async () => {
@@ -385,7 +407,7 @@ export default function IdPhoto() {
 
     // Resolve preset background to reference_image mode
     let resolvedBackgroundMode = options.backgroundMode;
-    let resolvedBackgroundRef = options.backgroundMode === 'reference_image' ? backgroundRefImage : null;
+    let resolvedBackgroundRef: string | null = null;
 
     if (options.backgroundMode === 'preset_cp7_xanh') {
       try {
@@ -396,7 +418,14 @@ export default function IdPhoto() {
         setStep('style');
         return;
       }
+    } else if (options.backgroundMode === 'reference_image' && backgroundRefImage) {
+      resolvedBackgroundRef = await resizeDataUri(backgroundRefImage);
     }
+
+    // Resize clothing reference if needed
+    const resolvedClothingRef = isRefClothing && clothingRefImage
+      ? await resizeDataUri(clothingRefImage)
+      : null;
 
     try {
       const result = await restoreIdPhoto(originalImage, {
@@ -404,7 +433,7 @@ export default function IdPhoto() {
         backgroundMode: resolvedBackgroundMode as any,
         clothingPrompt,
         clothingMode,
-        clothingReferenceImage: isRefClothing ? clothingRefImage : null,
+        clothingReferenceImage: resolvedClothingRef,
         backgroundReferenceImage: resolvedBackgroundRef,
       });
       setResultImage(result);
