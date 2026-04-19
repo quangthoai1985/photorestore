@@ -269,9 +269,9 @@ Every area must be equally sharp. No region should be blurry or soft.`;
 
 export function buildIdPhotoPrompt(options: IdPhotoOptions): string {
   const hasClothingRef = options.clothingMode === 'reference_image' && options.replaceClothing;
-  const hasBackgroundRef = options.backgroundMode === 'reference_image';
+  const hasBackgroundRef = options.backgroundMode === 'reference_image' || options.backgroundMode === 'preset_cp7_xanh';
 
-  const backgroundInstruction = options.backgroundMode === 'reference_image'
+  const backgroundInstruction = hasBackgroundRef
     ? 'Use the reference background image provided in this request (see BACKGROUND FROM REFERENCE IMAGE section below).'
     : options.backgroundMode === 'custom'
     ? (options.backgroundCustomPrompt?.trim() || 'Clean solid studio background, uniform and distraction-free.')

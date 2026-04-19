@@ -195,13 +195,18 @@ const ASPECT_RATIO_OPTIONS: Array<{ id: IdPhotoAspectRatio; label: string; desc:
   { id: '6:4', label: '6:4', desc: 'Khung ngang dài' },
   { id: '2:3', label: '2:3', desc: 'Dáng dọc cổ điển' },
   { id: '3:2', label: '3:2', desc: 'Dáng ngang cổ điển' },
+  { id: '5:7', label: '5:7', desc: 'Dọc cao, hộ chiếu / visa' },
+  { id: '7:5', label: '7:5', desc: 'Ngang rộng cân đối' },
+  { id: '4:5', label: '4:5', desc: 'Dọc nhẹ, phổ biến quốc tế' },
+  { id: '5:4', label: '5:4', desc: 'Ngang nhẹ, gần vuông' },
   { id: '1:1', label: '1:1', desc: 'Khung vuông' },
 ];
 
-const BACKGROUND_OPTIONS: Array<{ id: IdPhotoBackgroundMode; label: string; desc: string }> = [
+const BACKGROUND_OPTIONS: Array<{ id: IdPhotoBackgroundMode; label: string; desc: string; thumbnail?: string }> = [
   { id: 'white', label: 'Trắng', desc: 'Chuẩn ảnh hồ sơ sáng sạch' },
   { id: 'blue', label: 'Xanh', desc: 'Nền xanh ảnh thẻ phổ biến' },
   { id: 'gray', label: 'Xám nhạt', desc: 'Studio trung tính' },
+  { id: 'preset_cp7_xanh', label: 'CP7 Xanh', desc: 'Gradient xanh studio chuyên nghiệp', thumbnail: '/cp7_xanh.jpg' },
   { id: 'custom', label: 'Tùy chỉnh', desc: 'Tự mô tả nền mong muốn' },
   { id: 'reference_image', label: 'Upload ảnh nền', desc: 'Dùng ảnh nền bạn tự chọn' },
 ];
@@ -353,6 +358,17 @@ export default function IdPhoto() {
     reader.readAsDataURL(file);
   };
 
+  const fetchPresetBackground = async (url: string): Promise<string> => {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const startGenerate = async () => {
     if (!originalImage) return;
     setStep('processing');
@@ -367,13 +383,29 @@ export default function IdPhoto() {
       ? 'reference_image'
       : clothingPreset === 'custom' ? 'custom_text' : 'preset';
 
+    // Resolve preset background to reference_image mode
+    let resolvedBackgroundMode = options.backgroundMode;
+    let resolvedBackgroundRef = options.backgroundMode === 'reference_image' ? backgroundRefImage : null;
+
+    if (options.backgroundMode === 'preset_cp7_xanh') {
+      try {
+        resolvedBackgroundRef = await fetchPresetBackground('/cp7_xanh.jpg');
+        resolvedBackgroundMode = 'reference_image' as any;
+      } catch {
+        setError('Không thể tải ảnh nền preset. Vui lòng thử lại.');
+        setStep('style');
+        return;
+      }
+    }
+
     try {
       const result = await restoreIdPhoto(originalImage, {
         ...options,
+        backgroundMode: resolvedBackgroundMode as any,
         clothingPrompt,
         clothingMode,
         clothingReferenceImage: isRefClothing ? clothingRefImage : null,
-        backgroundReferenceImage: options.backgroundMode === 'reference_image' ? backgroundRefImage : null,
+        backgroundReferenceImage: resolvedBackgroundRef,
       });
       setResultImage(result);
       setStep('style');
@@ -565,7 +597,7 @@ export default function IdPhoto() {
                             <p className="mb-2 text-[10px] uppercase tracking-wider text-white/30">Nền background</p>
                             <div className="grid grid-cols-2 gap-2">
                               {BACKGROUND_OPTIONS.map((item) => (
-                                <button key={item.id} onClick={() => updateOptions({ backgroundMode: item.id })} className={`rounded-2xl border p-3 text-left transition-all ${options.backgroundMode === item.id ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300' : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'}`}><div className="flex items-start gap-3"><ImageIcon className={`mt-0.5 h-4 w-4 ${options.backgroundMode === item.id ? 'text-fuchsia-300' : 'text-white/30'}`} /><div><p className="text-xs font-bold">{item.label}</p><p className="mt-1 text-[10px] text-white/35">{item.desc}</p></div></div></button>
+                                <button key={item.id} onClick={() => updateOptions({ backgroundMode: item.id })} className={`rounded-2xl border p-3 text-left transition-all ${options.backgroundMode === item.id ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300' : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'}`}><div className="flex items-start gap-3">{item.thumbnail ? <img src={item.thumbnail} alt={item.label} className={`mt-0.5 h-8 w-8 rounded-lg border object-cover ${options.backgroundMode === item.id ? 'border-fuchsia-400/40' : 'border-white/10'}`} /> : <ImageIcon className={`mt-0.5 h-4 w-4 ${options.backgroundMode === item.id ? 'text-fuchsia-300' : 'text-white/30'}`} />}<div><p className="text-xs font-bold">{item.label}</p><p className="mt-1 text-[10px] text-white/35">{item.desc}</p></div></div></button>
                               ))}
                             </div>
                             {options.backgroundMode === 'custom' && <textarea value={options.backgroundCustomPrompt ?? ''} onChange={(e) => updateOptions({ backgroundCustomPrompt: e.target.value.trim() ? e.target.value : null })} rows={3} placeholder="Ví dụ: Nền trắng ngà sạch, studio mềm, không đổ bóng..." className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none" />}

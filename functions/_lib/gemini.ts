@@ -183,7 +183,7 @@ export async function processIdPhoto(apiKey: string, imageDataUri: string, optio
     });
   }
 
-  if (options.backgroundMode === 'reference_image' && options.backgroundReferenceImage) {
+  if ((options.backgroundMode === 'reference_image' || options.backgroundMode === 'preset_cp7_xanh') && options.backgroundReferenceImage) {
     const bgPayload = extractImagePayload(options.backgroundReferenceImage);
     referenceImages.push({
       label: 'REFERENCE BACKGROUND',

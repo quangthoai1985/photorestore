@@ -177,9 +177,9 @@ function buildUserPrompt(analysisData, options) {
 
 function buildIdPhotoPrompt(options) {
   const hasClothingRef = options.clothingMode === 'reference_image' && options.replaceClothing;
-  const hasBackgroundRef = options.backgroundMode === 'reference_image';
+  const hasBackgroundRef = options.backgroundMode === 'reference_image' || options.backgroundMode === 'preset_cp7_xanh';
 
-  const backgroundInstruction = options.backgroundMode === 'reference_image'
+  const backgroundInstruction = hasBackgroundRef
     ? 'Use the reference background image provided in this request (see BACKGROUND FROM REFERENCE IMAGE section below).'
     : options.backgroundMode === 'custom'
     ? (options.backgroundCustomPrompt?.trim() || 'Clean solid studio background, uniform and distraction-free.')
@@ -359,7 +359,7 @@ async function processIdPhoto(apiKey, imageDataUri, options) {
     });
   }
 
-  if (options.backgroundMode === 'reference_image' && options.backgroundReferenceImage) {
+  if ((options.backgroundMode === 'reference_image' || options.backgroundMode === 'preset_cp7_xanh') && options.backgroundReferenceImage) {
     const bgPayload = extractImagePayload(options.backgroundReferenceImage);
     referenceImages.push({
       label: 'REFERENCE BACKGROUND',

@@ -30,8 +30,8 @@ export interface RestoreOptions {
   clothingPrompt: string;
 }
 
-export type IdPhotoAspectRatio = '3:4' | '4:3' | '4:6' | '6:4' | '2:3' | '3:2' | '1:1';
-export type IdPhotoBackgroundMode = 'white' | 'blue' | 'gray' | 'custom' | 'reference_image';
+export type IdPhotoAspectRatio = '3:4' | '4:3' | '4:6' | '6:4' | '2:3' | '3:2' | '1:1' | '5:7' | '7:5' | '4:5' | '5:4';
+export type IdPhotoBackgroundMode = 'white' | 'blue' | 'gray' | 'custom' | 'reference_image' | 'preset_cp7_xanh';
 export type IdPhotoClothingMode = 'preset' | 'custom_text' | 'reference_image';
 export type IdPhotoGaze = 'keep' | 'look_straight' | 'slight_frontal_adjust';
 export type IdPhotoExpression = 'keep' | 'neutral' | 'soft_smile' | 'serious';
