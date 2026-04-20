@@ -88,7 +88,7 @@ A realistic Vietnamese-friendly formal ID photo with exact identity retention, s
 ===============================================================`;
 
 export const DEFAULT_OUTPUT_RESOLUTION = '2K';
-export const API_TIMEOUT_MS = 120_000;
+export const API_TIMEOUT_MS = 90_000;
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export const DEFAULT_ANALYSIS: AnalysisResult = {
