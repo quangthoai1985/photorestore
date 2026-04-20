@@ -17,6 +17,7 @@ import {
   ArrowUpFromLine,
   X,
   ImagePlus,
+  Wand2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
@@ -29,9 +30,11 @@ import {
   IdPhotoBackgroundMode,
   IdPhotoClothingMode,
   IdPhotoCrop,
+  IdPhotoDamageType,
   IdPhotoExpression,
   IdPhotoGaze,
   IdPhotoPose,
+  IdPhotoRestoreSeverity,
 } from '../hooks/useGeminiPipeline';
 import { useApiKeyStatus } from '../hooks/useApiKeyStatus';
 import { ApiKeyDialog } from '../components/ApiKeyDialog';
@@ -248,6 +251,36 @@ const CROP_OPTIONS: Array<{ id: IdPhotoCrop; label: string; desc: string }> = [
 
 const MAX_REF_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
+const ID_DAMAGE_TYPE_OPTIONS: IdPhotoDamageType[] = [
+  'blur_focus',
+  'blur_motion',
+  'scratch',
+  'mold',
+  'fade',
+  'color_shift',
+  'grain_heavy',
+  'overexposed',
+  'underexposed',
+];
+
+const ID_DAMAGE_TYPE_LABELS: Record<IdPhotoDamageType, string> = {
+  blur_focus: 'Mất nét',
+  blur_motion: 'Nhòe do rung',
+  scratch: 'Trầy xước',
+  mold: 'Mốc / ố nấm',
+  fade: 'Bạc màu',
+  color_shift: 'Lệch màu',
+  grain_heavy: 'Nhiễu hạt nặng',
+  overexposed: 'Cháy sáng',
+  underexposed: 'Thiếu sáng',
+};
+
+const ID_SEVERITY_OPTIONS: Array<{ id: IdPhotoRestoreSeverity; label: string; desc: string }> = [
+  { id: 'light', label: 'Nhẹ', desc: 'Chỉ bị nhẹ, mờ ít' },
+  { id: 'moderate', label: 'Trung bình', desc: 'Mờ rõ, cần phục hồi' },
+  { id: 'heavy', label: 'Nặng', desc: 'Rất mờ, hư hại nhiều' },
+];
+
 const DEFAULT_ID_OPTIONS: IdPhotoOptions = {
   model: 'gemini-3-pro-image-preview',
   aspectRatio: '3:4',
@@ -263,6 +296,9 @@ const DEFAULT_ID_OPTIONS: IdPhotoOptions = {
   expressionPreset: 'neutral',
   poseCorrection: 'standard_id',
   additionalInstructions: null,
+  enableFaceRestore: false,
+  faceRestoreDamageTypes: ['blur_focus', 'fade'],
+  faceRestoreSeverity: 'moderate',
 };
 
 export default function IdPhoto() {
@@ -697,6 +733,35 @@ export default function IdPhoto() {
                               })}
                             </div>
                           </div>
+
+                          <button onClick={() => updateOptions({ enableFaceRestore: !options.enableFaceRestore })} className={`w-full rounded-2xl border p-4 transition-all ${options.enableFaceRestore ? 'border-cyan-500/30 bg-cyan-500/10' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3 text-left"><Wand2 className={`h-5 w-5 ${options.enableFaceRestore ? 'text-cyan-400' : 'text-white/30'}`} /><div><p className="text-sm font-bold">Khôi phục gương mặt & chi tiết</p><p className="text-[10px] text-white/40">Làm nét, xóa vết xước, phục hồi tóc và áo bị mờ nhòe</p></div></div><div className={`relative h-5 w-10 rounded-full ${options.enableFaceRestore ? 'bg-cyan-500' : 'bg-white/10'}`}><motion.div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white" animate={{ x: options.enableFaceRestore ? 20 : 0 }} /></div></div></button>
+
+                          <AnimatePresence>
+                            {options.enableFaceRestore && (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                                <div className="space-y-4 rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.04] p-3">
+                                  <div>
+                                    <p className="mb-2 text-[10px] uppercase tracking-wider text-white/30">Loại hư hại</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {ID_DAMAGE_TYPE_OPTIONS.map((type) => {
+                                        const active = options.faceRestoreDamageTypes.includes(type);
+                                        return <button key={type} onClick={() => updateOptions({ faceRestoreDamageTypes: active ? options.faceRestoreDamageTypes.filter((t) => t !== type) : [...options.faceRestoreDamageTypes, type] })} className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-all ${active ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'}`}>{ID_DAMAGE_TYPE_LABELS[type]}</button>;
+                                      })}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <p className="mb-2 text-[10px] uppercase tracking-wider text-white/30">Mức độ hư hại</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {ID_SEVERITY_OPTIONS.map((item) => (
+                                        <button key={item.id} onClick={() => updateOptions({ faceRestoreSeverity: item.id })} className={`rounded-xl border p-3 text-left transition-all ${options.faceRestoreSeverity === item.id ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'}`}><p className="text-xs font-bold">{item.label}</p><p className="mt-1 text-[10px] text-white/35">{item.desc}</p></button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/[0.03] p-3 text-[11px] text-cyan-200/60">AI sẽ khôi phục chi tiết mặt, tóc, áo bị mờ/hư nhưng vẫn đảm bảo khuôn mặt sau phục hồi là đúng người gốc (identity-safe).</div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
 
                           <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.05] p-4 text-xs text-amber-100/75">Hệ thống chỉ nên chỉnh nhẹ hướng nhìn, biểu cảm và tư thế. Ưu tiên lớn nhất luôn là giữ lại khuôn mặt gốc để không thành người khác.</div>
 

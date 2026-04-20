@@ -49,6 +49,19 @@ export type IdPhotoPose =
   | 'female_soft_shoulder_angle';
 export type IdPhotoCrop = 'auto_id' | 'head_shoulders' | 'half_body';
 
+export type IdPhotoDamageType =
+  | 'blur_focus'
+  | 'blur_motion'
+  | 'scratch'
+  | 'mold'
+  | 'fade'
+  | 'color_shift'
+  | 'grain_heavy'
+  | 'overexposed'
+  | 'underexposed';
+
+export type IdPhotoRestoreSeverity = 'light' | 'moderate' | 'heavy';
+
 export interface IdPhotoOptions {
   model: ModelType;
   aspectRatio: IdPhotoAspectRatio;
@@ -64,6 +77,9 @@ export interface IdPhotoOptions {
   expressionPreset: IdPhotoExpression;
   poseCorrection: IdPhotoPose;
   additionalInstructions: string | null;
+  enableFaceRestore: boolean;
+  faceRestoreDamageTypes: IdPhotoDamageType[];
+  faceRestoreSeverity: IdPhotoRestoreSeverity;
 }
 
 export interface UserSettingsStatusResponse {

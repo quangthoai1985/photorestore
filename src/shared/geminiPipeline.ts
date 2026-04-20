@@ -339,7 +339,40 @@ export function buildIdPhotoPrompt(options: IdPhotoOptions): string {
 - If any adjustment is needed, keep it subtle and realistic.
 - The output must still be unmistakably the same person from the uploaded image.
 - Do not over-symmetrize or beautify the face.
+${options.enableFaceRestore ? `
+=== FACE & DETAIL RESTORATION (IDENTITY-SAFE) ===
+IMPORTANT: The user has enabled face/detail restoration for this ID photo.
+Your task is to RESTORE damaged, blurred, or degraded areas while strictly preserving the subject's identity.
 
+Damage types reported : ${options.faceRestoreDamageTypes?.length ? options.faceRestoreDamageTypes.join(', ') : 'general degradation'}
+Damage severity       : ${options.faceRestoreSeverity || 'moderate'}
+
+RESTORATION INSTRUCTIONS:
+1. FACIAL MICRO-DETAIL RECOVERY:
+   - Recover skin pores, fine facial hairs, subtle wrinkles, natural moisture in eyes, and lip texture.
+   - Remove blur, noise, and grain to reveal the true underlying facial detail.
+   - Maintain all natural imperfections (moles, scars, asymmetry) — these ARE the person's identity.
+
+2. HAIR RESTORATION:
+   - Recover individual hair strands and natural hair texture from blur or damage.
+   - Preserve exact hairstyle, hair volume, and hair direction from the original.
+   - Remove damage artifacts (scratches, mold, stains) on hair areas without smoothing.
+
+3. CLOTHING TEXTURE RECOVERY (if not replacing clothing):
+   - Identify fabric type and reconstruct physical weave patterns, thread details, and natural folds.
+   - Remove scratches, mold, stains, and blur from clothing without plastic smoothing.
+   - Replicate correct light interaction with the fabric material.
+
+4. DAMAGE-SPECIFIC TREATMENT:
+   - Treat dust, scratches, mold, stains, and water damage as physical obstructions — remove them to reveal underlying detail.
+   - For blur (motion or focus): sharpen and recover detail without introducing AI hallucination.
+   - For faded/color-shifted areas: restore natural tones while preserving the subject's real skin color.
+
+CRITICAL CONSTRAINT:
+- All restoration must serve identity PRESERVATION, not identity ALTERATION.
+- The restored face must be a cleaner, sharper version of the EXACT SAME PERSON — never a different person.
+- Do NOT hallucinate facial features that are not inferable from the original image.
+` : ''}
 === GAZE, EXPRESSION, AND POSE ===
 - ${gazeInstruction}
 - ${expressionInstruction}

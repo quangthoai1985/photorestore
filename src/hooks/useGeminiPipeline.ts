@@ -27,9 +27,11 @@ export type {
   IdPhotoBackgroundMode,
   IdPhotoClothingMode,
   IdPhotoCrop,
+  IdPhotoDamageType,
   IdPhotoExpression,
   IdPhotoGaze,
   IdPhotoPose,
+  IdPhotoRestoreSeverity,
 } from '../shared/types';
 export { DEFAULT_ANALYSIS } from '../shared/geminiPipeline';
 
